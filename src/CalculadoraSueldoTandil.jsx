@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import sueldosData from "./datos/sueldos.json";
 
-// Calculadora de Sueldos - Municipio de Tandil (versión extendida v3 - noviembre 2025)
-// Incluye: adicional por título, bonificación por jefatura, horas extras, descuentos adicionales y suma no remunerativa
+// Calculadora de Sueldos - Municipio de Tandil (versión v4 - noviembre 2025)
+// Incluye: lectura de JSON editable y botón para limpiar formulario
 
 export default function CalculadoraSueldoTandil() {
   const [nombre, setNombre] = useState("");
@@ -15,18 +16,9 @@ export default function CalculadoraSueldoTandil() {
   const [descuentosExtras, setDescuentosExtras] = useState(0);
   const [noRemunerativo, setNoRemunerativo] = useState(0);
 
-  // Tabla básica (extraída del anexo CCT, octubre 2025)
-  const basicos = {
-    1: 701459.89, 2: 704318.75, 3: 716126.83, 4: 727955.21, 5: 727955.21, 6: 734791.48,
-    7: 740893.35, 8: 758083.68, 9: 763816.05, 10: 808793.05, 11: 823481.78, 12: 855367.81,
-    13: 883311.74, 14: 980522.21, 15: 1050829.89, 16: 1250429.27, 17: 1323445.9,
-    18: 1241858.92, 19: 1563648.25, 20: 1724543.56, 21: 2046332.27, 24: 1628006.95,
-    28: 1033803.70, 713: 3325038.89,
-  };
-
-  // Plus horario según adenda 2023/2024
-  const plusHorarios = { 35: 0.0, 40: 0.1429, 48: 0.3714 };
-  const cargosPoliticos = [18, 19, 20, 21, 24, 28, 713];
+  const basicos = sueldosData.basicos;
+  const plusHorarios = sueldosData.plusHorarios;
+  const cargosPoliticos = sueldosData.cargosPoliticos;
 
   const basico = basicos[categoria] || 0;
   const adicionalHorario = basico * plusHorarios[regimen];
@@ -65,9 +57,25 @@ export default function CalculadoraSueldoTandil() {
 
   const round = (v) => Math.round(v * 100) / 100;
 
+  // 🔄 Función para limpiar todos los campos
+  const limpiarFormulario = () => {
+    setNombre("");
+    setCategoria("1");
+    setAniosAntiguedad(0);
+    setRegimen("35");
+    setTitulo("ninguno");
+    setJefatura(0);
+    setHoras50(0);
+    setHoras100(0);
+    setDescuentosExtras(0);
+    setNoRemunerativo(0);
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-6 bg-slate-50 rounded-2xl shadow">
-      <h1 className="text-2xl font-semibold mb-4">Calculadora de Sueldos — Municipio de Tandil</h1>
+      <h1 className="text-2xl font-semibold mb-4">
+        Calculadora de Sueldos — Municipio de Tandil
+      </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* COLUMNA IZQUIERDA: Inputs */}
@@ -161,6 +169,14 @@ export default function CalculadoraSueldoTandil() {
             onChange={(e) => setNoRemunerativo(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
+
+          {/* Botón de limpiar */}
+          <button
+            onClick={limpiarFormulario}
+            className="mt-4 bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600"
+          >
+            Limpiar formulario
+          </button>
         </div>
 
         {/* COLUMNA DERECHA: Resultados */}
