@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import sueldosData from "./datos/sueldos.json";
 
-// Calculadora de Sueldos - Municipio de Tandil (versión v4 - noviembre 2025)
-// Incluye: lectura de JSON editable y botón para limpiar formulario
+// Calculadora de Sueldos - Municipio de Tandil (v5 base - sin campo nombre)
 
 export default function CalculadoraSueldoTandil() {
-  const [nombre, setNombre] = useState("");
   const [categoria, setCategoria] = useState("1");
   const [aniosAntiguedad, setAniosAntiguedad] = useState(0);
   const [regimen, setRegimen] = useState("35");
@@ -25,20 +23,16 @@ export default function CalculadoraSueldoTandil() {
   const antiguedad = basico * 0.02 * aniosAntiguedad;
   const presentismo = cargosPoliticos.includes(Number(categoria)) ? 0 : 50000;
 
-  // Adicional por título
   const adicionalTitulo =
     titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.20 : 0;
 
-  // Bonificación por jefatura (% sobre básico)
   const adicionalJefatura = basico * (jefatura / 100);
 
-  // Valor hora base según régimen horario semanal
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
   const valorHora = (basico + adicionalHorario) / (horasSemanales * 4.33);
   const horasExtras50 = valorHora * 1.5 * horas50;
   const horasExtras100 = valorHora * 2 * horas100;
 
-  // Total remunerativo
   const remunerativo =
     basico +
     adicionalHorario +
@@ -49,7 +43,6 @@ export default function CalculadoraSueldoTandil() {
     horasExtras50 +
     horasExtras100;
 
-  // Aportes
   const aporteIPS = remunerativo * 0.14;
   const aporteIOMA = remunerativo * 0.048;
   const totalDescuentos = aporteIPS + aporteIOMA + Number(descuentosExtras);
@@ -57,9 +50,7 @@ export default function CalculadoraSueldoTandil() {
 
   const round = (v) => Math.round(v * 100) / 100;
 
-  // 🔄 Función para limpiar todos los campos
   const limpiarFormulario = () => {
-    setNombre("");
     setCategoria("1");
     setAniosAntiguedad(0);
     setRegimen("35");
@@ -78,16 +69,9 @@ export default function CalculadoraSueldoTandil() {
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* COLUMNA IZQUIERDA: Inputs */}
+        {/* IZQUIERDA: Inputs */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
-          <label className="block text-sm font-medium">Nombre del trabajador</label>
-          <input
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            className="mt-1 w-full p-2 border rounded"
-          />
-
-          <label className="block text-sm font-medium mt-3">Categoría</label>
+          <label className="block text-sm font-medium">Categoría</label>
           <select
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
@@ -162,7 +146,9 @@ export default function CalculadoraSueldoTandil() {
             className="mt-1 w-full p-2 border rounded"
           />
 
-          <label className="block text-sm font-medium mt-3">Premio productividad / suma no remunerativa ($)</label>
+          <label className="block text-sm font-medium mt-3">
+            Premio productividad / suma no remunerativa ($)
+          </label>
           <input
             type="number"
             value={noRemunerativo}
@@ -170,7 +156,7 @@ export default function CalculadoraSueldoTandil() {
             className="mt-1 w-full p-2 border rounded"
           />
 
-          {/* Botón de limpiar */}
+          {/* Botón limpiar */}
           <button
             onClick={limpiarFormulario}
             className="mt-4 bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600"
@@ -179,7 +165,7 @@ export default function CalculadoraSueldoTandil() {
           </button>
         </div>
 
-        {/* COLUMNA DERECHA: Resultados */}
+        {/* DERECHA: Resultados */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
           <h2 className="text-lg font-medium mb-2">Resumen de Cálculo</h2>
           <p><strong>Básico:</strong> ${round(basico)}</p>
