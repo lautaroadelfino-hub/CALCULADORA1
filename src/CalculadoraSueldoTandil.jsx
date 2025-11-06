@@ -68,7 +68,7 @@ export default function CalculadoraSueldoTandil() {
 
   const liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
 
-  // ✅ Nueva función de formateo de valores
+  // ✅ Formateo de valores
   const formatear = (valor) =>
     new Intl.NumberFormat("es-AR", {
       style: "decimal",
@@ -86,6 +86,17 @@ export default function CalculadoraSueldoTandil() {
     setHoras100(0);
     setDescuentosExtras(0);
     setNoRemunerativo(0);
+  };
+
+  const handleFocus = (e) => {
+    if (e.target.value === "0") e.target.value = "";
+  };
+
+  const handleBlur = (e, setter) => {
+    if (e.target.value === "") {
+      e.target.value = 0;
+      setter(0);
+    }
   };
 
   const enviarReporte = async () => {
@@ -158,6 +169,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={aniosAntiguedad}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setAniosAntiguedad)}
             onChange={(e) => setAniosAntiguedad(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
@@ -194,6 +207,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={funcion}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setFuncion)}
             onChange={(e) => setFuncion(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
@@ -204,6 +219,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={horas50}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setHoras50)}
             onChange={(e) => setHoras50(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
@@ -214,6 +231,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={horas100}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setHoras100)}
             onChange={(e) => setHoras100(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
@@ -224,6 +243,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={descuentosExtras}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setDescuentosExtras)}
             onChange={(e) => setDescuentosExtras(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
@@ -234,6 +255,8 @@ export default function CalculadoraSueldoTandil() {
           <input
             type="number"
             value={noRemunerativo}
+            onFocus={handleFocus}
+            onBlur={(e) => handleBlur(e, setNoRemunerativo)}
             onChange={(e) => setNoRemunerativo(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
