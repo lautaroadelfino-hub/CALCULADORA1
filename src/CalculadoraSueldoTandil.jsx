@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import municipio from "./datos/municipio.json";
 import obras from "./datos/obras_sanitarias.json";
 import sisp from "./datos/sisp.json";
-import { loadEscalasComercio } from "./utils/loadEscalasComercio";
+import { loadEscalasFromSheets } from "./utils/loadEscalasFromSheets";
 
 export default function CalculadoraSueldoTandil() {
   // Estado UI
