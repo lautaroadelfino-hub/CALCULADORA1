@@ -27,10 +27,11 @@ export default function CalculadoraSueldoTandil() {
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
   // Escalas de Comercio desde Google Sheets (CSV)
-  const [comercioEscalas, setComercioEscalas] = useState(null);
-  useEffect(() => {
-    loadEscalasComercio().then(setComercioEscalas).catch(() => setComercioEscalas(null));
-  }, []);
+useEffect(() => {
+  loadEscalasFromSheets().then((data) => {
+    setConveniosDinamicos(data); // nuevo estado
+  });
+}, []);
 
   // Mapa de convenios por sector
   const convenios = useMemo(
