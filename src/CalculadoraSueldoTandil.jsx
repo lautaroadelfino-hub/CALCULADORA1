@@ -9,7 +9,7 @@ export default function CalculadoraSueldoTandil() {
   const [aniosAntiguedad, setAniosAntiguedad] = useState(0);
   const [regimen, setRegimen] = useState("35");
   const [titulo, setTitulo] = useState("ninguno");
-  const [funcion, setFuncion] = useState(0); // antes jefatura
+  const [funcion, setFuncion] = useState(0);
   const [horas50, setHoras50] = useState(0);
   const [horas100, setHoras100] = useState(0);
   const [descuentosExtras, setDescuentosExtras] = useState(0);
@@ -19,7 +19,7 @@ export default function CalculadoraSueldoTandil() {
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
-  // Cargar JSON según organismo
+  // Carga dinámica según organismo
   const datos =
     organismo === "municipio" ? municipio : organismo === "obras" ? obras : sisp;
 
@@ -31,7 +31,6 @@ export default function CalculadoraSueldoTandil() {
   const adicionalHorario = basico * (plusHorarios[regimen] || 0);
   const antiguedad = basico * 0.02 * (Number(aniosAntiguedad) || 0);
 
-  // Presentismo corregido
   const tienePresentismo =
     !cargosPoliticos.map((c) => String(c)).includes(String(categoria));
   const presentismo = tienePresentismo ? 50000 : 0;
@@ -45,14 +44,12 @@ export default function CalculadoraSueldoTandil() {
 
   const adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-  // Horas extras
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
   const valorHora =
     horasSemanales > 0 ? (basico + adicionalHorario) / (horasSemanales * 4.33) : 0;
   const horasExtras50 = valorHora * 1.5 * (Number(horas50) || 0);
   const horasExtras100 = valorHora * 2 * (Number(horas100) || 0);
 
-  // Totales
   const totalRemunerativo =
     basico +
     adicionalHorario +
@@ -64,7 +61,6 @@ export default function CalculadoraSueldoTandil() {
     horasExtras100;
 
   const totalNoRemunerativo = Number(noRemunerativo) || 0;
-
   const aporteIPS = totalRemunerativo * 0.14;
   const aporteIOMA = totalRemunerativo * 0.048;
   const totalDeducciones =
@@ -72,7 +68,13 @@ export default function CalculadoraSueldoTandil() {
 
   const liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
 
-  const round = (v) => (isNaN(v) ? 0 : Math.round(v * 100) / 100);
+  // ✅ Nueva función de formateo de valores
+  const formatear = (valor) =>
+    new Intl.NumberFormat("es-AR", {
+      style: "decimal",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(valor || 0);
 
   const limpiarFormulario = () => {
     setCategoria(Object.keys(basicos)[0] || "1");
@@ -128,7 +130,7 @@ export default function CalculadoraSueldoTandil() {
           }}
           className="mt-1 w-full p-2 border rounded"
         >
-          <option value="municipio">Municipio de Tandil</option>
+          <option value="municipio">Administración Central</option>
           <option value="obras">Obras Sanitarias</option>
           <option value="sisp">Sistema Integrado de Salud Pública</option>
         </select>
@@ -145,7 +147,7 @@ export default function CalculadoraSueldoTandil() {
           >
             {Object.keys(basicos).map((key) => (
               <option key={key} value={key}>
-                {datos.nombre} — Cat. {key} (${basicos[key].toLocaleString()})
+                {datos.nombre} — Cat. {key} (${formatear(basicos[key])})
               </option>
             ))}
           </select>
@@ -251,41 +253,39 @@ export default function CalculadoraSueldoTandil() {
           </h2>
 
           <h3 className="font-medium text-slate-600 mt-2 mb-1">
-            💰 Remunerativos
+            Remunerativos
           </h3>
-          <p>Básico: ${round(basico)}</p>
-          <p>Antigüedad: ${round(antiguedad)}</p>
-          <p>Adic. Horario: ${round(adicionalHorario)}</p>
-          <p>Adic. Título: ${round(adicionalTitulo)}</p>
-          <p>Bonificación Función: ${round(adicionalFuncion)}</p>
-          <p>Horas 50%: ${round(horasExtras50)}</p>
-          <p>Horas 100%: ${round(horasExtras100)}</p>
-          <p>Presentismo: ${round(presentismo)}</p>
+          <p>Básico: ${formatear(basico)}</p>
+          <p>Antigüedad: ${formatear(antiguedad)}</p>
+          <p>Adic. Horario: ${formatear(adicionalHorario)}</p>
+          <p>Adic. Título: ${formatear(adicionalTitulo)}</p>
+          <p>Bonificación Función: ${formatear(adicionalFuncion)}</p>
+          <p>Horas 50%: ${formatear(horasExtras50)}</p>
+          <p>Horas 100%: ${formatear(horasExtras100)}</p>
+          <p>Presentismo: ${formatear(presentismo)}</p>
           <p className="font-medium text-slate-700 mt-1">
-            Total remunerativo: ${round(totalRemunerativo)}
+            Total remunerativo: ${formatear(totalRemunerativo)}
           </p>
 
           <h3 className="font-medium text-slate-600 mt-3 mb-1">
-            🟢 No remunerativos
+            No remunerativos
           </h3>
-          <p>Premios / Productividad: ${round(noRemunerativo)}</p>
+          <p>Premios / Productividad: ${formatear(noRemunerativo)}</p>
           <p className="font-medium text-slate-700 mt-1">
-            Total no remunerativo: ${round(totalNoRemunerativo)}
+            Total no remunerativo: ${formatear(totalNoRemunerativo)}
           </p>
 
-          <h3 className="font-medium text-slate-600 mt-3 mb-1">
-            🔻 Deducciones
-          </h3>
-          <p>IPS (14%): -${round(aporteIPS)}</p>
-          <p>IOMA (4,8%): -${round(aporteIOMA)}</p>
-          <p>Otros desc.: -${round(descuentosExtras)}</p>
+          <h3 className="font-medium text-slate-600 mt-3 mb-1">Deducciones</h3>
+          <p>IPS (14%): -${formatear(aporteIPS)}</p>
+          <p>IOMA (4,8%): -${formatear(aporteIOMA)}</p>
+          <p>Otros desc.: -${formatear(descuentosExtras)}</p>
           <p className="font-medium text-slate-700 mt-1">
-            Total deducciones: -${round(totalDeducciones)}
+            Total deducciones: -${formatear(totalDeducciones)}
           </p>
 
           <hr className="my-3" />
           <p className="text-xl font-bold text-green-700">
-            💵 Líquido a cobrar: ${round(liquido)}
+            Líquido a cobrar: ${formatear(liquido)}
           </p>
         </div>
       </div>
