@@ -27,16 +27,17 @@ export default function CalculadoraSueldoTandil() {
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
   // Mapa de convenios por sector
-  const convenios = useMemo(
-    () => ({
-      publico: { municipio, obras, sisp },
-      privado: { comercio },
-    }),
-    []
-  );
+ const [comercioEscalas, setComercioEscalas] = useState(null);
 
-  const datosConvenio = convenios[sector]?.[convenio];
-  const tieneEscalas = Boolean(datosConvenio && datosConvenio.escalas);
+useEffect(() => {
+  loadEscalasComercio().then(setComercioEscalas);
+}, []);
+
+const convenios = useMemo(() => ({
+  publico: { municipio, obras, sisp },
+  privado: comercioEscalas ? { comercio: { nombre: "Empleados de Comercio", escalas: comercioEscalas } } : {}
+}), [comercioEscalas]);
+
 
   // Moneda
   const money = (v) =>
