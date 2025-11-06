@@ -1,10 +1,23 @@
 {
   "nombre": "Sistema Integrado de Salud Pública (SISP)",
-  "basicos": {
-    "Médico I": 0,
-    "Médico II": 0,
-    "Enfermero": 0
-  },
-  "plusHorarios": { "35": 0.0, "40": 0.1429, "48": 0.3714 },
-  "cargosPoliticos": []
+  "cct": "Convenio Municipal - Salud Pública",
+  "sector": "publico",
+
+  "escalas": {
+    "2025-10": {
+      "categoria": {
+        "1": 0,
+        "2": 0,
+        "3": 0
+      },
+      "plusHorarios": {
+        "35": 0.0,
+        "40": 0.1429,
+        "48": 0.3714
+      },
+      "presentismo_fijo": 50000,
+      "antiguedad_porcentaje": 0.02,
+      "cargosPoliticos": []
+    }
+  }
 }
