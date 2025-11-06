@@ -4,8 +4,8 @@
   "sector": "privado",
 
   "parametros": {
-    "antiguedad": "1%_sobre_(basico + sumas_no_remunerativas)",
-    "presentismo": "8.33%_sobre_total_remunerativo_y_no_remunerativo",
+    "antiguedad": "1%_sobre_(basico + sumas_no_remunerativas_fijas)",
+    "presentismo": "1/12_del_total_(sin_presentismo)",
     "aportes": {
       "jubilacion": 11,
       "obra_social": 3,
@@ -16,14 +16,28 @@
   "escalas": {
     "2025-10": {
       "sumas_no_remunerativas_fijas": 40000,
-
       "categoria": {
         "administrativo_a": 1047131,
         "administrativo_b": 1051637,
         "administrativo_c": 1056137,
         "administrativo_d": 1069648,
         "administrativo_e": 1080904,
-        "administrativo_f": 1097415
+        "administrativo_f": 1097415,
+        "vendedor_a": 1047131,
+        "vendedor_b": 1059432,
+        "vendedor_c": 1072348,
+        "vendedor_d": 1092193,
+        "cajero_a": 1047131,
+        "cajero_b": 1056137,
+        "cajero_c": 1072348,
+        "auxiliar_a": 1047131,
+        "auxiliar_b": 1069648,
+        "auxiliar_c": 1080904,
+        "auxiliar_servicios_a": 1035322,
+        "auxiliar_servicios_b": 1047131,
+        "maestranza_a": 1035322,
+        "maestranza_b": 1043450,
+        "maestranza_c": 1051637
       }
     }
   }
