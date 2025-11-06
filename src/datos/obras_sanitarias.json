@@ -1,0 +1,10 @@
+{
+  "nombre": "Obras Sanitarias",
+  "basicos": {
+    "A": 0,
+    "B": 0,
+    "C": 0
+  },
+  "plusHorarios": { "35": 0.0, "40": 0.1429, "48": 0.3714 },
+  "cargosPoliticos": []
+}
