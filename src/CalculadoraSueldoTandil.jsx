@@ -128,7 +128,7 @@ export default function CalculadoraSueldoTandil() {
           }}
           className="mt-1 w-full p-2 border rounded"
         >
-          <option value="municipio">Municipio de Tandil</option>
+          <option value="municipio">Administración Central</option>
           <option value="obras">Obras Sanitarias</option>
           <option value="sisp">Sistema Integrado de Salud Pública</option>
         </select>
