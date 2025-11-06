@@ -241,6 +241,11 @@ const convenios = useMemo(() => ({
   const ready = !tieneEscalas || Boolean(escalaActual); // listo para calcular/mostrar
 
   return (
+    if (sector === "privado" && !comercioEscalas) {
+  return (
+    <div className="p-6 text-center text-slate-600">
+      Cargando escalas salariales desde Google Sheets...
+    </div>
     <div className="min-h-screen bg-slate-100">
       <header className="bg-blue-800 text-white p-4 text-center text-xl font-semibold">
         Calculadora de Sueldos
