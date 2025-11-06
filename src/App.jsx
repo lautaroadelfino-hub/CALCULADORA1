@@ -1,4 +1,4 @@
-import CalculadoraSueldoTandil from "./CalculadoraSueldoTandil";
+import CalculadoraSueldoTandil from "./CalculadoraSueldoTandil.jsx";
 
 function App() {
   return <CalculadoraSueldoTandil />;
