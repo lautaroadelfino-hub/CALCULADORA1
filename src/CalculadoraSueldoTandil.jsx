@@ -11,6 +11,8 @@ export default function CalculadoraSueldoTandil() {
   const [horas100, setHoras100] = useState(0);
   const [descuentosExtras, setDescuentosExtras] = useState(0);
   const [noRemunerativo, setNoRemunerativo] = useState(0);
+
+  // Estado del modal de reporte
   const [mostrarModal, setMostrarModal] = useState(false);
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
@@ -24,8 +26,9 @@ export default function CalculadoraSueldoTandil() {
   const antiguedad = basico * 0.02 * aniosAntiguedad;
   const presentismo = cargosPoliticos.includes(Number(categoria)) ? 0 : 50000;
   const adicionalTitulo =
-    titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.20 : 0;
+    titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
   const adicionalJefatura = basico * (jefatura / 100);
+
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
   const valorHora = (basico + adicionalHorario) / (horasSemanales * 4.33);
   const horasExtras50 = valorHora * 1.5 * horas50;
@@ -60,6 +63,7 @@ export default function CalculadoraSueldoTandil() {
     setNoRemunerativo(0);
   };
 
+  // Función de envío del reporte al servidor (api/sendReport)
   const enviarReporte = async () => {
     if (!descripcion.trim()) {
       setMensajeEnviado("⚠️ Por favor escribí una descripción del problema.");
@@ -91,10 +95,95 @@ export default function CalculadoraSueldoTandil() {
         Calculadora de Sueldos — Municipio de Tandil
       </h1>
 
-      {/* FORM PRINCIPAL */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* IZQUIERDA - FORMULARIO */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
-          {/* ... (todos los inputs igual que antes) ... */}
+          <label className="block text-sm font-medium">Categoría</label>
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="mt-1 w-full p-2 border rounded"
+          >
+            {Object.keys(basicos).map((key) => (
+              <option key={key} value={key}>
+                Categoría {key} — ${basicos[key].toLocaleString()}
+              </option>
+            ))}
+          </select>
+
+          <label className="block text-sm font-medium mt-3">Años de antigüedad</label>
+          <input
+            type="number"
+            value={aniosAntiguedad}
+            onChange={(e) => setAniosAntiguedad(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">Régimen horario semanal</label>
+          <select
+            value={regimen}
+            onChange={(e) => setRegimen(e.target.value)}
+            className="mt-1 w-full p-2 border rounded"
+          >
+            <option value="35">35 hs (sin plus)</option>
+            <option value="40">40 hs (+14,29%)</option>
+            <option value="48">48 hs (+37,14%)</option>
+          </select>
+
+          <label className="block text-sm font-medium mt-3">Título</label>
+          <select
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="mt-1 w-full p-2 border rounded"
+          >
+            <option value="ninguno">Sin título</option>
+            <option value="terciario">Técnico / Terciario (15%)</option>
+            <option value="universitario">Universitario / Posgrado (20%)</option>
+          </select>
+
+          <label className="block text-sm font-medium mt-3">
+            Bonificación por función/jefatura (%)
+          </label>
+          <input
+            type="number"
+            value={jefatura}
+            onChange={(e) => setJefatura(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">Horas extras al 50%</label>
+          <input
+            type="number"
+            value={horas50}
+            onChange={(e) => setHoras50(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">Horas extras al 100%</label>
+          <input
+            type="number"
+            value={horas100}
+            onChange={(e) => setHoras100(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">Descuentos adicionales ($)</label>
+          <input
+            type="number"
+            value={descuentosExtras}
+            onChange={(e) => setDescuentosExtras(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Premio productividad / suma no remunerativa ($)
+          </label>
+          <input
+            type="number"
+            value={noRemunerativo}
+            onChange={(e) => setNoRemunerativo(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
 
           <button
             onClick={limpiarFormulario}
@@ -104,9 +193,28 @@ export default function CalculadoraSueldoTandil() {
           </button>
         </div>
 
-        {/* RESULTADOS */}
+        {/* DERECHA - RESULTADOS */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
-          {/* ... (resumen igual que antes) ... */}
+          <h2 className="text-lg font-medium mb-2">Resumen de Cálculo</h2>
+          <p><strong>Básico:</strong> ${round(basico)}</p>
+          <p><strong>Antigüedad ({aniosAntiguedad} años):</strong> ${round(antiguedad)}</p>
+          {presentismo > 0 ? (
+            <p><strong>Presentismo:</strong> ${presentismo}</p>
+          ) : (
+            <p className="text-slate-500 text-sm">(Sin presentismo por cargo político)</p>
+          )}
+          <p><strong>Plus horario:</strong> ${round(adicionalHorario)}</p>
+          <p><strong>Adic. Título:</strong> ${round(adicionalTitulo)}</p>
+          <p><strong>Jefatura:</strong> ${round(adicionalJefatura)}</p>
+          <p><strong>Horas 50%:</strong> ${round(horasExtras50)}</p>
+          <p><strong>Horas 100%:</strong> ${round(horasExtras100)}</p>
+          <hr className="my-2" />
+          <p><strong>Total Remunerativo:</strong> ${round(remunerativo)}</p>
+          <p><strong>Total No Remunerativo:</strong> ${round(noRemunerativo)}</p>
+          <p><strong>IPS (14%):</strong> -${round(aporteIPS)}</p>
+          <p><strong>IOMA (4,8%):</strong> -${round(aporteIOMA)}</p>
+          <p><strong>Descuentos adicionales:</strong> -${round(descuentosExtras)}</p>
+          <hr className="my-2" />
           <p className="text-lg font-bold">Líquido a cobrar: ${round(neto)}</p>
         </div>
       </div>
@@ -155,8 +263,9 @@ export default function CalculadoraSueldoTandil() {
 
       <div className="mt-4 text-sm text-slate-600">
         <p>
-          💡 Cálculo basado en los básicos vigentes al 1° de octubre de 2025 según Anexo I del CCT Municipal y Decreto correspondiente. 
-          Esta herramienta es una simulación informativa y no sustituye la liquidación oficial.
+          💡 Cálculo basado en los básicos vigentes al 1° de octubre de 2025 según Anexo I del
+          CCT Municipal y Decreto correspondiente. Esta herramienta es una simulación informativa
+          y no sustituye la liquidación oficial.
         </p>
       </div>
     </div>
