@@ -21,12 +21,12 @@ export default function CalculadoraSueldoTandil() {
   const [descuentosExtras, setDescuentosExtras] = useState(0);
   const [noRemunerativo, setNoRemunerativo] = useState(0);
 
-  // Reporte interno
+  // Modal
   const [mostrarModal, setMostrarModal] = useState(false);
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
-  // Mapa de convenios por sector
+  // Mapas
   const convenios = useMemo(
     () => ({
       publico: { municipio, obras, sisp },
@@ -43,65 +43,46 @@ export default function CalculadoraSueldoTandil() {
     new Intl.NumberFormat("es-AR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(Number.isFinite(Number(v)) ? Number(v) : 0);
+    }).format(Number(v) || 0);
 
-  // UX inputs: limpiar 0 al enfocar
-  const onFocusZero = (e) => {
-    if (e.target.value === "0") e.target.value = "";
-  };
-  const onBlurZero = (e, setter) => {
-    if (e.target.value === "") {
-      e.target.value = "0";
-      setter(0);
-    }
-  };
+  const onFocusZero = (e) => e.target.value === "0" && (e.target.value = "");
+  const onBlurZero = (e, setter) => (e.target.value === "" ? (setter(0), (e.target.value = "0")) : null);
 
-  // Al cambiar sector → convenio default
-  useEffect(() => {
-    setConvenio(sector === "publico" ? "municipio" : "comercio");
-  }, [sector]);
+  useEffect(() => setConvenio(sector === "publico" ? "municipio" : "comercio"), [sector]);
 
-  // Al cambiar convenio → fijar mes válido (si hay escalas), categoría y régimen
   useEffect(() => {
     if (!datosConvenio) return;
 
     if (datosConvenio.escalas) {
       const meses = Object.keys(datosConvenio.escalas || {});
-      if (meses.length > 0) {
-        const mesValido = meses.includes(mes) ? mes : meses[0];
-        if (mesValido !== mes) setMes(mesValido);
+      const mesValido = meses.includes(mes) ? mes : meses[0];
+      if (mesValido !== mes) setMes(mesValido);
 
-        const catObj = datosConvenio.escalas[mesValido]?.categoria || {};
-        const firstCat = Object.keys(catObj)[0] || "1";
-        setCategoria(firstCat);
-
-        setRegimen(sector === "privado" ? "48" : "35"); // Comercio 48; público 35 default
-      }
+      const catObj = datosConvenio.escalas[mesValido]?.categoria || {};
+      setCategoria(Object.keys(catObj)[0] || "1");
+      setRegimen(sector === "privado" ? "48" : "35");
     } else {
-      // Compat (si algún JSON viejo no tiene escalas)
       const b = datosConvenio.basicos || {};
-      const first = Object.keys(b)[0] || "1";
-      setCategoria(first);
+      setCategoria(Object.keys(b)[0] || "1");
       setRegimen("35");
       setMes("");
     }
   }, [convenio, datosConvenio, sector]);
 
-  // Al cambiar mes en convenios con escalas → asegurar categoría válida
   useEffect(() => {
     if (tieneEscalas && mes && datosConvenio?.escalas?.[mes]) {
       const catObj = datosConvenio.escalas[mes].categoria || {};
-      if (!catObj[categoria]) {
-        const first = Object.keys(catObj)[0] || "1";
-        setCategoria(first);
-      }
+      if (!catObj[categoria]) setCategoria(Object.keys(catObj)[0] || "1");
     }
-  }, [mes, tieneEscalas, datosConvenio, categoria]);
+  }, [mes]);
 
-  // Helpers
   const valorHora = (base, horasSem) => (horasSem > 0 ? base / (horasSem * 4.33) : 0);
 
-  // === CÁLCULOS ===
+  // ---------------------------------
+  // CALCULOS
+  // ---------------------------------
+
+  // Variables finales
   let basico = 0;
   let adicionalHorario = 0;
   let antiguedadPesos = 0;
@@ -112,43 +93,34 @@ export default function CalculadoraSueldoTandil() {
   let horasExtras100 = 0;
   let totalRemunerativo = 0;
   let totalNoRemunerativo = 0;
-  let desc1 = 0, desc2 = 0, desc3 = 0;
   let liquido = 0;
   let noRemuFijo = 0;
 
   if (sector === "publico") {
-    // ======= PÚBLICO (Admin. Central, Obras, SISP) =======
+    // -------------------- PÚBLICO --------------------
     const escala = datosConvenio?.escalas?.[mes] || {};
     const bmap = escala?.categoria || {};
     basico = Number(bmap[categoria]) || 0;
 
-    // Plus horario por mes
     const plus = escala?.plusHorarios?.[regimen] || 0;
     adicionalHorario = basico * plus;
 
-    // Antigüedad % por mes (default 2%)
     const antPct = Number(escala?.antiguedad_porcentaje) || 0.02;
     antiguedadPesos = basico * antPct * (Number(aniosAntiguedad) || 0);
 
-    // Presentismo fijo por mes (excluye cargos políticos)
     const presentismoFijo = Number(escala?.presentismo_fijo) || 0;
-    const esCargoPolitico =
-      (escala?.cargosPoliticos || []).map(String).includes(String(categoria));
-    presentismoPesos = esCargoPolitico ? 0 : presentismoFijo;
+    presentismoPesos = presentismoFijo;
 
-    // Adicional por título
     adicionalTitulo =
       titulo === "terciario" ? basico * 0.15 :
-      titulo === "universitario" ? basico * 0.2 : 0;
+      titulo === "universitario" ? basico * 0.20 : 0;
 
-    // Bonificación por función (%)
     adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-    // Horas extras sobre (básico + plus)
     const horasSem = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
     const vh = valorHora(basico + adicionalHorario, horasSem);
-    horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
-    horasExtras100 = vh * 2.0 * (Number(horas100) || 0);
+    horasExtras50 = vh * 1.5 * Number(horas50);
+    horasExtras100 = vh * 2 * Number(horas100);
 
     totalRemunerativo =
       basico +
@@ -162,39 +134,35 @@ export default function CalculadoraSueldoTandil() {
 
     totalNoRemunerativo = Number(noRemunerativo) || 0;
 
-    // Descuentos públicos: IPS 14% + IOMA 4,8%
     const extras = Number(descuentosExtras) || 0;
-    desc1 = totalRemunerativo * 0.14;
-    desc2 = totalRemunerativo * 0.048;
-
-    const totalDeducciones = desc1 + desc2 + extras;
-    liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
+    const descIPS = totalRemunerativo * 0.14;
+    const descIOMA = totalRemunerativo * 0.048;
+    liquido = totalRemunerativo + totalNoRemunerativo - (descIPS + descIOMA + extras);
 
   } else {
-    // ======= PRIVADO — COMERCIO 130/75 =======
+    // -------------------- PRIVADO — COMERCIO --------------------
     const escala = datosConvenio?.escalas?.[mes] || {};
     const bmap = escala?.categoria || {};
     basico = Number(bmap[categoria]) || 0;
 
-    // NR fijo por mes
+    // Suma no remunerativa acordada
     noRemuFijo = Number(escala?.sumas_no_remunerativas_fijas) || 0;
 
-    // Antigüedad 1% sobre (básico + NR fijo) por año
-    antiguedadPesos = (basico + noRemuFijo) * (Number(aniosAntiguedad) || 0) * 0.01;
+    // ✅ Antigüedad correcta
+    antiguedadPesos = basico * (Number(aniosAntiguedad) || 0) * 0.01;
 
-    // Presentismo 1/12 del total (sin presentismo)
-    presentismoPesos = (basico + antiguedadPesos + noRemuFijo) / 12;
+    // ✅ Presentismo correcto → (Básico + Antigüedad) / 12
+    presentismoPesos = (basico + antiguedadPesos) / 12;
 
-    // Adicional por título / función (opcionales)
     adicionalTitulo =
       titulo === "terciario" ? basico * 0.15 :
-      titulo === "universitario" ? basico * 0.2 : 0;
+      titulo === "universitario" ? basico * 0.20 : 0;
+
     adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-    // Horas extras (base: básico), 48hs
     const vh = valorHora(basico, 48);
-    horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
-    horasExtras100 = vh * 2.0 * (Number(horas100) || 0);
+    horasExtras50 = vh * 1.5 * Number(horas50);
+    horasExtras100 = vh * 2 * Number(horas100);
 
     totalRemunerativo =
       basico +
@@ -207,27 +175,24 @@ export default function CalculadoraSueldoTandil() {
 
     totalNoRemunerativo = noRemuFijo + (Number(noRemunerativo) || 0);
 
-    // Descuentos: 11% + 3% + 2%
     const extras = Number(descuentosExtras) || 0;
-    desc1 = totalRemunerativo * 0.11;
-    desc2 = totalRemunerativo * 0.03;
-    desc3 = totalRemunerativo * 0.02;
 
-    const totalDeducciones = desc1 + desc2 + desc3 + extras;
-    liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
+    const descJub = totalRemunerativo * 0.11;
+    const descOS = totalRemunerativo * 0.03;
+    const descPAMI = totalRemunerativo * 0.03;
+    const descFAECYS = totalRemunerativo * 0.02;
+    const descSol = totalRemunerativo * 0.005;
+
+    liquido =
+      totalRemunerativo +
+      totalNoRemunerativo -
+      (descJub + descOS + descPAMI + descFAECYS + descSol + extras);
   }
 
-  // Opciones de convenio por sector
-  const opcionesConvenio = Object.keys(convenios[sector]).map((key) => ({
-    key,
-    nombre: convenios[sector][key].nombre,
-  }));
-
+  // UI Helpers
+  const opcionesConvenio = Object.keys(convenios[sector]).map((key) => ({ key, nombre: convenios[sector][key].nombre }));
   const mesesDisponibles = tieneEscalas ? Object.keys(datosConvenio?.escalas || {}) : [];
-
-  // Guardita por si todavía no hay mes válido cargado
-  const escalaActual = tieneEscalas ? datosConvenio?.escalas?.[mes] : null;
-  const requiereMes = tieneEscalas && !escalaActual;
+  const requiereMes = tieneEscalas && !datosConvenio?.escalas?.[mes];
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -236,200 +201,33 @@ export default function CalculadoraSueldoTandil() {
       </header>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-        {/* === PARÁMETROS === */}
-        <section className="bg-white p-5 rounded-xl shadow">
-          <h2 className="font-semibold mb-3">Parámetros</h2>
 
-          <label className="block text-sm font-medium">Sector</label>
-          <select
-            value={sector}
-            onChange={(e) => setSector(e.target.value)}
-            className="w-full p-2 border rounded mb-3"
-          >
-            <option value="publico">Público</option>
-            <option value="privado">Privado</option>
-          </select>
+        {/* === IZQUIERDA: PARÁMETROS === */}
+        <Parametros {...{
+          sector, setSector,
+          convenio, setConvenio,
+          mesesDisponibles, tieneEscalas, mes, setMes,
+          categoria, setCategoria,
+          aniosAntiguedad, setAniosAntiguedad,
+          regimen, setRegimen,
+          titulo, setTitulo,
+          funcion, setFuncion,
+          horas50, setHoras50,
+          horas100, setHoras100,
+          descuentosExtras, setDescuentosExtras,
+          noRemunerativo, setNoRemunerativo,
+          onFocusZero, onBlurZero,
+          datosConvenio, money, sectorOriginal: sector
+        }} />
 
-          <label className="block text-sm font-medium">Convenio</label>
-          <select
-            value={convenio}
-            onChange={(e) => setConvenio(e.target.value)}
-            className="w-full p-2 border rounded mb-3"
-          >
-            {opcionesConvenio.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.nombre}
-              </option>
-            ))}
-          </select>
-
-          {tieneEscalas && (
-            <>
-              <label className="block text-sm font-medium">Mes</label>
-              <select
-                value={mes}
-                onChange={(e) => setMes(e.target.value)}
-                className="w-full p-2 border rounded mb-3"
-                disabled={!tieneEscalas}
-              >
-                {mesesDisponibles.map((k) => (
-                  <option key={k} value={k}>
-                    {formatMes(k)}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-
-          <label className="block text-sm font-medium">Categoría</label>
-          <select
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            className="w-full p-2 border rounded mb-3"
-            disabled={requiereMes}
-          >
-            {tieneEscalas && datosConvenio?.escalas?.[mes]?.categoria
-              ? Object.keys(datosConvenio.escalas[mes].categoria).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))
-              : Object.keys(datosConvenio?.basicos || {}).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-          </select>
-
-          <label className="block text-sm font-medium">Años de antigüedad</label>
-          <input
-            type="number"
-            value={aniosAntiguedad}
-            onFocus={onFocusZero}
-            onBlur={(e) => onBlurZero(e, setAniosAntiguedad)}
-            onChange={(e) => setAniosAntiguedad(Number(e.target.value))}
-            className="w-full p-2 border rounded mb-3"
-          />
-
-          {/* Público elige régimen; en Comercio queda fijo (48) */}
-          {sector === "publico" && (
-            <>
-              <label className="block text-sm font-medium">Régimen horario semanal</label>
-              <select
-                value={regimen}
-                onChange={(e) => setRegimen(e.target.value)}
-                className="w-full p-2 border rounded mb-3"
-              >
-                <option value="35">35 hs (sin plus)</option>
-                <option value="40">40 hs (+14,29%)</option>
-                <option value="48">48 hs (+37,14%)</option>
-              </select>
-            </>
-          )}
-
-          <label className="block text-sm font-medium">Adicional por título</label>
-          <select
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            className="w-full p-2 border rounded mb-3"
-          >
-            <option value="ninguno">Sin título</option>
-            <option value="terciario">Técnico/Terciario — 15%</option>
-            <option value="universitario">Universitario/Posgrado — 20%</option>
-          </select>
-
-          <label className="block text-sm font-medium">Bonificación por función (%)</label>
-          <input
-            type="number"
-            value={funcion}
-            onFocus={onFocusZero}
-            onBlur={(e) => onBlurZero(e, setFuncion)}
-            onChange={(e) => setFuncion(Number(e.target.value))}
-            className="w-full p-2 border rounded mb-3"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Horas extras al 50%</label>
-              <input
-                type="number"
-                value={horas50}
-                onFocus={onFocusZero}
-                onBlur={(e) => onBlurZero(e, setHoras50)}
-                onChange={(e) => setHoras50(Number(e.target.value))}
-                className="w-full p-2 border rounded mb-3"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Horas extras al 100%</label>
-              <input
-                type="number"
-                value={horas100}
-                onFocus={onFocusZero}
-                onBlur={(e) => onBlurZero(e, setHoras100)}
-                onChange={(e) => setHoras100(Number(e.target.value))}
-                className="w-full p-2 border rounded mb-3"
-              />
-            </div>
-          </div>
-
-          <label className="block text-sm font-medium">Descuentos adicionales ($)</label>
-          <input
-            type="number"
-            value={descuentosExtras}
-            onFocus={onFocusZero}
-            onBlur={(e) => onBlurZero(e, setDescuentosExtras)}
-            onChange={(e) => setDescuentosExtras(Number(e.target.value))}
-            className="w-full p-2 border rounded mb-3"
-          />
-
-          <label className="block text-sm font-medium">Premio productividad / No remunerativo ($)</label>
-          <input
-            type="number"
-            value={noRemunerativo}
-            onFocus={onFocusZero}
-            onBlur={(e) => onBlurZero(e, setNoRemunerativo)}
-            onChange={(e) => setNoRemunerativo(Number(e.target.value))}
-            className="w-full p-2 border rounded mb-4"
-          />
-
-          <button
-            onClick={() => {
-              // Reset de parámetros (no cambia sector/convenio/mes)
-              const firstCat = datosConvenio?.escalas?.[mes]?.categoria
-                ? Object.keys(datosConvenio.escalas[mes].categoria)[0] || "1"
-                : Object.keys(datosConvenio?.basicos || {})[0] || "1";
-              setCategoria(firstCat);
-              setAniosAntiguedad(0);
-              setRegimen(sector === "publico" ? "35" : "48");
-              setTitulo("ninguno");
-              setFuncion(0);
-              setHoras50(0);
-              setHoras100(0);
-              setDescuentosExtras(0);
-              setNoRemunerativo(0);
-            }}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg w-full"
-          >
-            Limpiar formulario
-          </button>
-
-          <button
-            onClick={() => setMostrarModal(true)}
-            className="mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg w-full"
-          >
-            Reportar error / sugerencia
-          </button>
-        </section>
-
-        {/* === RESULTADOS === */}
+        {/* === DERECHA: RESULTADOS === */}
         <section className="bg-white p-5 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Resultado</h2>
 
           <Bloque titulo="Remunerativos">
             <Fila label="Básico" value={basico} money={money} />
             <Fila label="Antigüedad" value={antiguedadPesos} money={money} />
-            <Fila label="Adicional horario" value={adicionalHorario} money={money} />
+            {sector === "publico" && <Fila label="Adicional horario" value={adicionalHorario} money={money} />}
             <Fila label="Adicional por título" value={adicionalTitulo} money={money} />
             <Fila label="Bonificación por función" value={adicionalFuncion} money={money} />
             <Fila label="Horas extras 50%" value={horasExtras50} money={money} />
@@ -440,7 +238,7 @@ export default function CalculadoraSueldoTandil() {
 
           <Bloque titulo="No remunerativos">
             {sector === "privado" && (
-              <Fila label="Suma no remunerativa fija (escala)" value={noRemuFijo} money={money} />
+              <Fila label="Suma no remunerativa fija (acuerdo)" value={noRemuFijo} money={money} />
             )}
             <Fila label="Otras no remunerativas" value={noRemunerativo} money={money} />
             <Total label="Total no remunerativo" value={totalNoRemunerativo} money={money} />
@@ -456,41 +254,30 @@ export default function CalculadoraSueldoTandil() {
               <>
                 <Fila label="Jubilación (11%)" value={-(totalRemunerativo * 0.11)} money={money} />
                 <Fila label="Obra social (3%)" value={-(totalRemunerativo * 0.03)} money={money} />
+                <Fila label="Ley 19032 – PAMI (3%)" value={-(totalRemunerativo * 0.03)} money={money} />
                 <Fila label="FAECYS (2%)" value={-(totalRemunerativo * 0.02)} money={money} />
+                <Fila label="Aporte solidario (0,5%)" value={-(totalRemunerativo * 0.005)} money={money} />
               </>
             )}
             <Fila label="Otros descuentos" value={-(Number(descuentosExtras) || 0)} money={money} />
-            <Total
-              label="Total deducciones"
-              value={
-                sector === "publico"
-                  ? totalRemunerativo * 0.14 +
-                    totalRemunerativo * 0.048 +
-                    (Number(descuentosExtras) || 0)
-                  : totalRemunerativo * 0.11 +
-                    totalRemunerativo * 0.03 +
-                    totalRemunerativo * 0.02 +
-                    (Number(descuentosExtras) || 0)
-              }
-              money={money}
-            />
+
+            <Total label="Total deducciones" value={
+              sector === "publico"
+                ? totalRemunerativo * 0.14 +
+                  totalRemunerativo * 0.048 +
+                  (Number(descuentosExtras) || 0)
+                : totalRemunerativo * 0.11 +
+                  totalRemunerativo * 0.03 +
+                  totalRemunerativo * 0.03 +
+                  totalRemunerativo * 0.02 +
+                  totalRemunerativo * 0.005 +
+                  (Number(descuentosExtras) || 0)
+            } money={money} />
           </Bloque>
 
           <hr className="my-4" />
           <p className="text-xl font-bold text-green-700">
-            Líquido a cobrar: $
-            {money(
-              totalRemunerativo +
-                totalNoRemunerativo -
-                (sector === "publico"
-                  ? totalRemunerativo * 0.14 +
-                    totalRemunerativo * 0.048 +
-                    (Number(descuentosExtras) || 0)
-                  : totalRemunerativo * 0.11 +
-                    totalRemunerativo * 0.03 +
-                    totalRemunerativo * 0.02 +
-                    (Number(descuentosExtras) || 0))
-            )}
+            Líquido a cobrar: ${money(liquido)}
           </p>
         </section>
       </div>
@@ -508,6 +295,7 @@ export default function CalculadoraSueldoTandil() {
   );
 }
 
+// Presentación
 function Bloque({ titulo, children }) {
   return (
     <div className="mb-4">
@@ -533,6 +321,7 @@ function Total({ label, value, money }) {
   );
 }
 
+// Modal reporte (sin cambios)
 function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensajeEnviado, cerrar }) {
   const enviarReporte = async () => {
     if (!descripcion.trim()) return setMensajeEnviado("Por favor describa el problema.");
@@ -571,7 +360,6 @@ function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensaje
   );
 }
 
-// "2025-10" -> "octubre de 2025"
 function formatMes(key) {
   try {
     const d = new Date(key + "-01T00:00:00");
