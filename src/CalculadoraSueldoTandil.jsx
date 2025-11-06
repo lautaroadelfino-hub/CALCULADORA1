@@ -129,7 +129,7 @@ export default function CalculadoraSueldo() {
       <header className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Calculadora de Sueldos</h1>
-          <p className="text-sm text-blue-100 mt-1">Simulación salarial — valores parametrizables por organismo</p>
+          <p className="text-sm text-blue-100 mt-1">Simulación salarial</p>
         </div>
       </header>
 
