@@ -9,7 +9,7 @@ export default function CalculadoraSueldoTandil() {
   const [aniosAntiguedad, setAniosAntiguedad] = useState(0);
   const [regimen, setRegimen] = useState("35");
   const [titulo, setTitulo] = useState("ninguno");
-  const [jefatura, setJefatura] = useState(0);
+  const [funcion, setFuncion] = useState(0); // antes jefatura
   const [horas50, setHoras50] = useState(0);
   const [horas100, setHoras100] = useState(0);
   const [descuentosExtras, setDescuentosExtras] = useState(0);
@@ -19,7 +19,7 @@ export default function CalculadoraSueldoTandil() {
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
-  // Selección dinámica del JSON según el organismo
+  // Cargar JSON según organismo
   const datos =
     organismo === "municipio" ? municipio : organismo === "obras" ? obras : sisp;
 
@@ -27,19 +27,14 @@ export default function CalculadoraSueldoTandil() {
   const plusHorarios = datos.plusHorarios || {};
   const cargosPoliticos = datos.cargosPoliticos || [];
 
-  // ✅ siempre string-safe
   const basico = Number(basicos[categoria]) || 0;
   const adicionalHorario = basico * (plusHorarios[regimen] || 0);
   const antiguedad = basico * 0.02 * (Number(aniosAntiguedad) || 0);
 
-  // ✅ Presentismo corregido
+  // Presentismo corregido
   const tienePresentismo =
-    !cargosPoliticos
-      .map((c) => String(c))
-      .includes(String(categoria));
-
+    !cargosPoliticos.map((c) => String(c)).includes(String(categoria));
   const presentismo = tienePresentismo ? 50000 : 0;
-
 
   const adicionalTitulo =
     titulo === "terciario"
@@ -48,29 +43,34 @@ export default function CalculadoraSueldoTandil() {
       ? basico * 0.2
       : 0;
 
-  const adicionalJefatura = basico * ((Number(jefatura) || 0) / 100);
+  const adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-  // horas
+  // Horas extras
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
-  const valorHora = horasSemanales ? (basico + adicionalHorario) / (horasSemanales * 4.33) : 0;
+  const valorHora =
+    horasSemanales > 0 ? (basico + adicionalHorario) / (horasSemanales * 4.33) : 0;
   const horasExtras50 = valorHora * 1.5 * (Number(horas50) || 0);
   const horasExtras100 = valorHora * 2 * (Number(horas100) || 0);
 
-  // total
-  const remunerativo =
+  // Totales
+  const totalRemunerativo =
     basico +
     adicionalHorario +
     antiguedad +
     presentismo +
     adicionalTitulo +
-    adicionalJefatura +
+    adicionalFuncion +
     horasExtras50 +
     horasExtras100;
 
-  const aporteIPS = remunerativo * 0.14;
-  const aporteIOMA = remunerativo * 0.048;
-  const totalDescuentos = aporteIPS + aporteIOMA + (Number(descuentosExtras) || 0);
-  const neto = remunerativo + (Number(noRemunerativo) || 0) - totalDescuentos;
+  const totalNoRemunerativo = Number(noRemunerativo) || 0;
+
+  const aporteIPS = totalRemunerativo * 0.14;
+  const aporteIOMA = totalRemunerativo * 0.048;
+  const totalDeducciones =
+    aporteIPS + aporteIOMA + (Number(descuentosExtras) || 0);
+
+  const liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
 
   const round = (v) => (isNaN(v) ? 0 : Math.round(v * 100) / 100);
 
@@ -79,7 +79,7 @@ export default function CalculadoraSueldoTandil() {
     setAniosAntiguedad(0);
     setRegimen("35");
     setTitulo("ninguno");
-    setJefatura(0);
+    setFuncion(0);
     setHoras50(0);
     setHoras100(0);
     setDescuentosExtras(0);
@@ -128,7 +128,7 @@ export default function CalculadoraSueldoTandil() {
           }}
           className="mt-1 w-full p-2 border rounded"
         >
-          <option value="municipio">Administración Central</option>
+          <option value="municipio">Municipio de Tandil</option>
           <option value="obras">Obras Sanitarias</option>
           <option value="sisp">Sistema Integrado de Salud Pública</option>
         </select>
@@ -187,12 +187,12 @@ export default function CalculadoraSueldoTandil() {
           </select>
 
           <label className="block text-sm font-medium mt-3">
-            Bonificación por jefatura (%)
+            Bonificación por función (%)
           </label>
           <input
             type="number"
-            value={jefatura}
-            onChange={(e) => setJefatura(Number(e.target.value))}
+            value={funcion}
+            onChange={(e) => setFuncion(Number(e.target.value))}
             className="mt-1 w-full p-2 border rounded"
           />
 
@@ -246,25 +246,47 @@ export default function CalculadoraSueldoTandil() {
 
         {/* RESULTADOS */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
-          <h2 className="text-lg font-medium mb-2">
+          <h2 className="text-lg font-semibold mb-3 text-slate-700">
             Resumen de Cálculo ({datos.nombre})
           </h2>
-          <p><strong>Básico:</strong> ${round(basico)}</p>
-          <p><strong>Antigüedad:</strong> ${round(antiguedad)}</p>
-          <p><strong>Adic. Horario:</strong> ${round(adicionalHorario)}</p>
-          <p><strong>Adic. Título:</strong> ${round(adicionalTitulo)}</p>
-          <p><strong>Jefatura:</strong> ${round(adicionalJefatura)}</p>
-          <p><strong>Horas 50%:</strong> ${round(horasExtras50)}</p>
-          <p><strong>Horas 100%:</strong> ${round(horasExtras100)}</p>
-          <p><strong>Presentismo:</strong> ${round(presentismo)}</p>
-          <hr className="my-2" />
-          <p><strong>Total Remunerativo:</strong> ${round(remunerativo)}</p>
-          <p><strong>No Remunerativo:</strong> ${round(noRemunerativo)}</p>
-          <p><strong>IPS (14%):</strong> -${round(aporteIPS)}</p>
-          <p><strong>IOMA (4,8%):</strong> -${round(aporteIOMA)}</p>
-          <p><strong>Otros desc.:</strong> -${round(descuentosExtras)}</p>
-          <hr className="my-2" />
-          <p className="text-lg font-bold">Líquido a cobrar: ${round(neto)}</p>
+
+          <h3 className="font-medium text-slate-600 mt-2 mb-1">
+            💰 Remunerativos
+          </h3>
+          <p>Básico: ${round(basico)}</p>
+          <p>Antigüedad: ${round(antiguedad)}</p>
+          <p>Adic. Horario: ${round(adicionalHorario)}</p>
+          <p>Adic. Título: ${round(adicionalTitulo)}</p>
+          <p>Bonificación Función: ${round(adicionalFuncion)}</p>
+          <p>Horas 50%: ${round(horasExtras50)}</p>
+          <p>Horas 100%: ${round(horasExtras100)}</p>
+          <p>Presentismo: ${round(presentismo)}</p>
+          <p className="font-medium text-slate-700 mt-1">
+            Total remunerativo: ${round(totalRemunerativo)}
+          </p>
+
+          <h3 className="font-medium text-slate-600 mt-3 mb-1">
+            🟢 No remunerativos
+          </h3>
+          <p>Premios / Productividad: ${round(noRemunerativo)}</p>
+          <p className="font-medium text-slate-700 mt-1">
+            Total no remunerativo: ${round(totalNoRemunerativo)}
+          </p>
+
+          <h3 className="font-medium text-slate-600 mt-3 mb-1">
+            🔻 Deducciones
+          </h3>
+          <p>IPS (14%): -${round(aporteIPS)}</p>
+          <p>IOMA (4,8%): -${round(aporteIOMA)}</p>
+          <p>Otros desc.: -${round(descuentosExtras)}</p>
+          <p className="font-medium text-slate-700 mt-1">
+            Total deducciones: -${round(totalDeducciones)}
+          </p>
+
+          <hr className="my-3" />
+          <p className="text-xl font-bold text-green-700">
+            💵 Líquido a cobrar: ${round(liquido)}
+          </p>
         </div>
       </div>
 
@@ -278,7 +300,7 @@ export default function CalculadoraSueldoTandil() {
         </button>
       </div>
 
-      {/* MODAL REPORTAR */}
+      {/* MODAL */}
       {mostrarModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white p-6 rounded-2xl shadow max-w-md w-full">
