@@ -6,14 +6,14 @@ import comercio from "./datos/privados/comercio_130_75.json";
 
 export default function CalculadoraSueldoTandil() {
   const [sector, setSector] = useState("publico");
-  const [convenio, setConvenio] = useState("municipio");
-  const [mes, setMes] = useState("2025-10");
+  const [convenio, setConvenio] = useState("municipio"); // municipio / obras / sisp / comercio
+  const [mes, setMes] = useState(""); // sólo para convenios con escalas (comercio)
 
   const [categoria, setCategoria] = useState("1");
   const [aniosAntiguedad, setAniosAntiguedad] = useState(0);
-  const [regimen, setRegimen] = useState("35");
-  const [titulo, setTitulo] = useState("ninguno");
-  const [funcion, setFuncion] = useState(0);
+  const [regimen, setRegimen] = useState("35"); // públicos: 35/40/48; comercio: 48 fijo
+  const [titulo, setTitulo] = useState("ninguno"); // ninguno / terciario / universitario
+  const [funcion, setFuncion] = useState(0); // %
   const [horas50, setHoras50] = useState(0);
   const [horas100, setHoras100] = useState(0);
   const [descuentosExtras, setDescuentosExtras] = useState(0);
@@ -23,6 +23,7 @@ export default function CalculadoraSueldoTandil() {
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
+  // Mapa de convenios por sector
   const convenios = useMemo(
     () => ({
       publico: { municipio, obras, sisp },
@@ -34,12 +35,14 @@ export default function CalculadoraSueldoTandil() {
   const datosConvenio = convenios[sector][convenio];
   const tieneEscalas = Boolean(datosConvenio?.escalas);
 
+  // Formateo
   const money = (v) =>
     new Intl.NumberFormat("es-AR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(v) || 0);
 
+  // UX: limpiar 0 al enfocar inputs numéricos
   const onFocusZero = (e) => {
     if (e.target.value === "0") e.target.value = "";
   };
@@ -50,93 +53,165 @@ export default function CalculadoraSueldoTandil() {
     }
   };
 
+  // Al cambiar sector, setear convenio por defecto
   useEffect(() => {
     setConvenio(sector === "publico" ? "municipio" : "comercio");
   }, [sector]);
 
+  // Al cambiar convenio:
+  // - si tiene escalas (comercio), asegurar mes válido y categoría inicial
+  // - si no tiene escalas (públicos), fijar categoría inicial
   useEffect(() => {
-    setCategoria(
-      tieneEscalas
-        ? Object.keys(datosConvenio.escalas?.[mes]?.categoria || {})[0]
-        : Object.keys(datosConvenio.basicos || {})[0]
-    );
-    setRegimen(sector === "privado" ? "48" : regimen);
-  }, [convenio, mes]);
+    if (tieneEscalas) {
+      const meses = Object.keys(datosConvenio?.escalas || {});
+      if (meses.length > 0) {
+        const mesValido = meses.includes(mes) ? mes : meses[0];
+        if (mesValido !== mes) setMes(mesValido);
+        const catObj = datosConvenio.escalas[mesValido]?.categoria || {};
+        const firstCat = Object.keys(catObj)[0] || "1";
+        setCategoria(firstCat);
+        setRegimen("48"); // Comercio: 48 hs fijo
+      }
+    } else {
+      const b = datosConvenio?.basicos || {};
+      const firstCat = Object.keys(b)[0] || "1";
+      setCategoria(firstCat);
+      // mantener régimen elegido por el usuario (35/40/48), default 35
+      setRegimen((prev) =>
+        prev === "35" || prev === "40" || prev === "48" ? prev : "35"
+      );
+      setMes(""); // no aplica
+    }
+  }, [convenio, datosConvenio, tieneEscalas]);
 
-  let basico = 0,
-    presentismo = 0,
-    antiguedad = 0,
-    tituloAd = 0,
-    funcionAd = 0,
-    adicionalHorario = 0,
-    hex50 = 0,
-    hex100 = 0,
-    noRemuFijo = 0,
-    totalRemu = 0,
-    totalNoRemu = 0,
-    desc1 = 0,
+  // Si cambia `mes` manualmente (en comercio), asegurar que la categoría se ajuste
+  useEffect(() => {
+    if (tieneEscalas && mes && datosConvenio?.escalas?.[mes]) {
+      const catObj = datosConvenio.escalas[mes].categoria || {};
+      const firstCat = Object.keys(catObj)[0] || "1";
+      if (!catObj[categoria]) setCategoria(firstCat);
+    }
+  }, [mes, tieneEscalas, datosConvenio, categoria]);
+
+  // Helpers
+  const valorHora = (base, horasSem) => (horasSem > 0 ? base / (horasSem * 4.33) : 0);
+
+  // Cálculos
+  let basico = 0;
+  let adicionalHorario = 0;
+  let antiguedadPesos = 0;
+  let presentismoPesos = 0;
+  let adicionalTitulo = 0;
+  let adicionalFuncion = 0;
+  let horasExtras50 = 0;
+  let horasExtras100 = 0;
+  let totalRemunerativo = 0;
+  let totalNoRemunerativo = 0;
+  let desc1 = 0,
     desc2 = 0,
-    desc3 = 0,
-    liquido = 0;
-
-  const valorHora = (base, hs) => base / (hs * 4.33);
+    desc3 = 0;
+  let liquido = 0;
+  let noRemuFijo = 0;
 
   if (!tieneEscalas) {
-    basico = datosConvenio.basicos[categoria] || 0;
-    const plus = datosConvenio.plusHorarios?.[regimen] || 0;
+    // ======= PÚBLICOS =======
+    const bmap = datosConvenio?.basicos || {};
+    basico = Number(bmap[categoria]) || 0;
+
+    // Plus horario
+    const plus = datosConvenio?.plusHorarios?.[regimen] || 0;
     adicionalHorario = basico * plus;
-    antiguedad = basico * 0.02 * aniosAntiguedad;
 
+    // Antigüedad 2% por año sobre básico
+    antiguedadPesos = basico * 0.02 * (Number(aniosAntiguedad) || 0);
+
+    // Presentismo fijo $50.000 excepto cargos políticos
     const esCargoPolitico =
-      datosConvenio.cargosPoliticos?.map(String).includes(String(categoria)) || false;
-    presentismo = esCargoPolitico ? 0 : 50000;
+      (datosConvenio?.cargosPoliticos || []).map(String).includes(String(categoria));
+    presentismoPesos = esCargoPolitico ? 0 : 50000;
 
-    tituloAd =
+    // Adicional por título (15% / 20%)
+    adicionalTitulo =
       titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
-    funcionAd = basico * (funcion / 100);
 
-    const hs = regimen === "40" ? 40 : regimen === "48" ? 48 : 35;
-    const vh = valorHora(basico + adicionalHorario, hs);
-    hex50 = vh * 1.5 * horas50;
-    hex100 = vh * 2 * horas100;
+    // Bonificación por función (%)
+    adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-    totalRemu =
-      basico + adicionalHorario + antiguedad + presentismo + tituloAd + funcionAd + hex50 + hex100;
+    // Horas extras: (básico + plus horario)
+    const horasSem = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
+    const vh = valorHora(basico + adicionalHorario, horasSem);
+    horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
+    horasExtras100 = vh * 2 * (Number(horas100) || 0);
 
-    totalNoRemu = noRemunerativo;
+    totalRemunerativo =
+      basico +
+      adicionalHorario +
+      antiguedadPesos +
+      presentismoPesos +
+      adicionalTitulo +
+      adicionalFuncion +
+      horasExtras50 +
+      horasExtras100;
 
-    desc1 = totalRemu * 0.14;
-    desc2 = totalRemu * 0.048;
+    totalNoRemunerativo = Number(noRemunerativo) || 0;
 
+    // Descuentos públicos: IPS 14% + IOMA 4.8%
     const extras = Number(descuentosExtras) || 0;
-    liquido = totalRemu + totalNoRemu - (desc1 + desc2 + extras);
+    desc1 = totalRemunerativo * 0.14;
+    desc2 = totalRemunerativo * 0.048;
+    const totalDeducciones = desc1 + desc2 + extras;
 
+    liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
   } else {
-    const escala = datosConvenio.escalas[mes];
-    basico = escala.categoria[categoria];
-    noRemuFijo = escala.sumas_no_remunerativas_fijas || 0;
+    // ======= PRIVADO — COMERCIO 130/75 =======
+    const escala = datosConvenio?.escalas?.[mes] || {};
+    const bmap = escala?.categoria || {};
+    basico = Number(bmap[categoria]) || 0;
 
-    antiguedad = (basico + noRemuFijo) * aniosAntiguedad * 0.01;
-    presentismo = (basico + antiguedad + noRemuFijo) / 12;
+    noRemuFijo = Number(escala?.sumas_no_remunerativas_fijas) || 0;
 
-    tituloAd =
+    // Antigüedad: 1% sobre (básico + suma NR fija) por año
+    antiguedadPesos = (basico + noRemuFijo) * (Number(aniosAntiguedad) || 0) * 0.01;
+
+    // Presentismo: 1/12 del total (sin presentismo): tomamos (basico + antigüedad + NR fijo) / 12
+    presentismoPesos = (basico + antiguedadPesos + noRemuFijo) / 12;
+
+    // Título / función (opcionales)
+    adicionalTitulo =
       titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
-    funcionAd = basico * (funcion / 100);
+    adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
+    // Horas extras (base: básico, 48hs)
     const vh = valorHora(basico, 48);
-    hex50 = vh * 1.5 * horas50;
-    hex100 = vh * 2 * horas100;
+    horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
+    horasExtras100 = vh * 2 * (Number(horas100) || 0);
 
-    totalRemu = basico + antiguedad + presentismo + tituloAd + funcionAd + hex50 + hex100;
-    totalNoRemu = noRemuFijo + noRemunerativo;
+    totalRemunerativo =
+      basico +
+      antiguedadPesos +
+      presentismoPesos +
+      adicionalTitulo +
+      adicionalFuncion +
+      horasExtras50 +
+      horasExtras100;
 
-    desc1 = totalRemu * 0.11;
-    desc2 = totalRemu * 0.03;
-    desc3 = totalRemu * 0.02;
+    totalNoRemunerativo = noRemuFijo + (Number(noRemunerativo) || 0);
 
+    // Descuentos: 11% + 3% + 2% (sobre remunerativo)
     const extras = Number(descuentosExtras) || 0;
-    liquido = totalRemu + totalNoRemu - (desc1 + desc2 + desc3 + extras);
+    desc1 = totalRemunerativo * 0.11; // jubilación
+    desc2 = totalRemunerativo * 0.03; // obra social
+    desc3 = totalRemunerativo * 0.02; // FAECYS
+    const totalDeducciones = desc1 + desc2 + desc3 + extras;
+
+    liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
   }
+
+  // Opciones de convenio por sector
+  const opcionesConvenio = Object.keys(convenios[sector]).map((key) => ({
+    key,
+    nombre: convenios[sector][key].nombre,
+  }));
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -145,126 +220,248 @@ export default function CalculadoraSueldoTandil() {
       </header>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-
-        {/* --- PARÁMETROS --- */}
+        {/* PARÁMETROS */}
         <section className="bg-white p-5 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Parámetros</h2>
 
-          <label>Sector</label>
-          <select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full p-2 border rounded mb-3">
+          <label className="block text-sm font-medium">Sector</label>
+          <select
+            value={sector}
+            onChange={(e) => setSector(e.target.value)}
+            className="w-full p-2 border rounded mb-3"
+          >
             <option value="publico">Administración Central</option>
             <option value="privado">Privado</option>
           </select>
 
-          <label>Convenio</label>
-          <select value={convenio} onChange={(e) => setConvenio(e.target.value)} className="w-full p-2 border rounded mb-3">
-            {Object.keys(convenios[sector]).map((c) => (
-              <option key={c} value={c}>{convenios[sector][c].nombre}</option>
+          <label className="block text-sm font-medium">Convenio</label>
+          <select
+            value={convenio}
+            onChange={(e) => setConvenio(e.target.value)}
+            className="w-full p-2 border rounded mb-3"
+          >
+            {opcionesConvenio.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.nombre}
+              </option>
             ))}
           </select>
 
           {tieneEscalas && (
             <>
-              <label>Mes</label>
-              <select value={mes} onChange={(e) => setMes(e.target.value)} className="w-full p-2 border rounded mb-3">
-                {Object.keys(datosConvenio.escalas).map((m) => (
-                  <option key={m} value={m}>{m}</option>
+              <label className="block text-sm font-medium">Mes</label>
+              <select
+                value={mes}
+                onChange={(e) => setMes(e.target.value)}
+                className="w-full p-2 border rounded mb-3"
+                disabled={!datosConvenio?.escalas}
+              >
+                {Object.keys(datosConvenio?.escalas || {}).map((k) => (
+                  <option key={k} value={k}>
+                    {formatMes(k)}
+                  </option>
                 ))}
               </select>
             </>
           )}
 
-          <label>Categoría</label>
-          <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full p-2 border rounded mb-3">
-            {tieneEscalas
+          {/* Categoría */}
+          <label className="block text-sm font-medium">Categoría</label>
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="w-full p-2 border rounded mb-3"
+          >
+            {tieneEscalas && datosConvenio?.escalas?.[mes]?.categoria
               ? Object.keys(datosConvenio.escalas[mes].categoria).map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>
+                    {c.replaceAll("_", " ")}
+                  </option>
                 ))
-              : Object.keys(datosConvenio.basicos).map((c) => (
-                  <option key={c} value={c}>{c}</option>
+              : Object.keys(datosConvenio?.basicos || {}).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
           </select>
 
-          <label>Años de antigüedad</label>
-          <input type="number" value={aniosAntiguedad} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setAniosAntiguedad)} onChange={(e) => setAniosAntiguedad(Number(e.target.value))} className="w-full p-2 border rounded mb-3"/>
+          <label className="block text-sm font-medium">Años de antigüedad</label>
+          <input
+            type="number"
+            value={aniosAntiguedad}
+            onFocus={onFocusZero}
+            onBlur={(e) => onBlurZero(e, setAniosAntiguedad)}
+            onChange={(e) => setAniosAntiguedad(Number(e.target.value))}
+            className="w-full p-2 border rounded mb-3"
+          />
 
           {!tieneEscalas && (
             <>
-              <label>Régimen horario semanal</label>
-              <select value={regimen} onChange={(e) => setRegimen(e.target.value)} className="w-full p-2 border rounded mb-3">
-                <option value="35">35 hs</option>
-                <option value="40">40 hs</option>
-                <option value="48">48 hs</option>
+              <label className="block text-sm font-medium">Régimen horario semanal</label>
+              <select
+                value={regimen}
+                onChange={(e) => setRegimen(e.target.value)}
+                className="w-full p-2 border rounded mb-3"
+              >
+                <option value="35">35 hs (sin plus)</option>
+                <option value="40">40 hs (+14,29%)</option>
+                <option value="48">48 hs (+37,14%)</option>
               </select>
             </>
           )}
 
-          <label>Adicional por título</label>
-          <select value={titulo} onChange={(e) => setTitulo(e.target.value)} className="w-full p-2 border rounded mb-3">
+          <label className="block text-sm font-medium">Adicional por título</label>
+          <select
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full p-2 border rounded mb-3"
+          >
             <option value="ninguno">Sin título</option>
-            <option value="terciario">Terciario / Técnico (15%)</option>
-            <option value="universitario">Universitario (20%)</option>
+            <option value="terciario">Técnico/Terciario — 15%</option>
+            <option value="universitario">Universitario/Posgrado — 20%</option>
           </select>
 
-          <label>Bonificación por función (%)</label>
-          <input type="number" value={funcion} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setFuncion)} onChange={(e) => setFuncion(Number(e.target.value))} className="w-full p-2 border rounded mb-3"/>
+          <label className="block text-sm font-medium">Bonificación por función (%)</label>
+          <input
+            type="number"
+            value={funcion}
+            onFocus={onFocusZero}
+            onBlur={(e) => onBlurZero(e, setFuncion)}
+            onChange={(e) => setFuncion(Number(e.target.value))}
+            className="w-full p-2 border rounded mb-3"
+          />
 
-          <label>Horas extras 50%</label>
-          <input type="number" value={horas50} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setHoras50)} onChange={(e) => setHoras50(Number(e.target.value))} className="w-full p-2 border rounded mb-3"/>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium">Horas extras al 50%</label>
+              <input
+                type="number"
+                value={horas50}
+                onFocus={onFocusZero}
+                onBlur={(e) => onBlurZero(e, setHoras50)}
+                onChange={(e) => setHoras50(Number(e.target.value))}
+                className="w-full p-2 border rounded mb-3"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Horas extras al 100%</label>
+              <input
+                type="number"
+                value={horas100}
+                onFocus={onFocusZero}
+                onBlur={(e) => onBlurZero(e, setHoras100)}
+                onChange={(e) => setHoras100(Number(e.target.value))}
+                className="w-full p-2 border rounded mb-3"
+              />
+            </div>
+          </div>
 
-          <label>Horas extras 100%</label>
-          <input type="number" value={horas100} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setHoras100)} onChange={(e) => setHoras100(Number(e.target.value))} className="w-full p-2 border rounded mb-3"/>
+          <label className="block text-sm font-medium">Descuentos adicionales ($)</label>
+          <input
+            type="number"
+            value={descuentosExtras}
+            onFocus={onFocusZero}
+            onBlur={(e) => onBlurZero(e, setDescuentosExtras)}
+            onChange={(e) => setDescuentosExtras(Number(e.target.value))}
+            className="w-full p-2 border rounded mb-3"
+          />
 
-          <label>Descuentos adicionales ($)</label>
-          <input type="number" value={descuentosExtras} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setDescuentosExtras)} onChange={(e) => setDescuentosExtras(Number(e.target.value))} className="w-full p-2 border rounded mb-3"/>
+          <label className="block text-sm font-medium">Premio productividad / No remunerativo ($)</label>
+          <input
+            type="number"
+            value={noRemunerativo}
+            onFocus={onFocusZero}
+            onBlur={(e) => onBlurZero(e, setNoRemunerativo)}
+            onChange={(e) => setNoRemunerativo(Number(e.target.value))}
+            className="w-full p-2 border rounded mb-4"
+          />
 
-          <label>No remunerativo / Premio ($)</label>
-          <input type="number" value={noRemunerativo} onFocus={onFocusZero} onBlur={(e) => onBlurZero(e, setNoRemunerativo)} onChange={(e) => setNoRemunerativo(Number(e.target.value))} className="w-full p-2 border rounded mb-4"/>
-
-          <button onClick={() => {
-            setAniosAntiguedad(0);
-            setTitulo("ninguno");
-            setFuncion(0);
-            setHoras50(0);
-            setHoras100(0);
-            setNoRemunerativo(0);
-            setDescuentosExtras(0);
-          }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg w-full">
+          <button
+            onClick={() => {
+              // Reset de parámetros (no cambia sector/convenio/mes)
+              setCategoria(
+                tieneEscalas
+                  ? Object.keys(datosConvenio?.escalas?.[mes]?.categoria || {})[0] || "1"
+                  : Object.keys(datosConvenio?.basicos || {})[0] || "1"
+              );
+              setAniosAntiguedad(0);
+              setRegimen(tieneEscalas ? "48" : "35");
+              setTitulo("ninguno");
+              setFuncion(0);
+              setHoras50(0);
+              setHoras100(0);
+              setDescuentosExtras(0);
+              setNoRemunerativo(0);
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg w-full"
+          >
             Limpiar formulario
           </button>
 
-          <button onClick={() => setMostrarModal(true)} className="mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg w-full">
+          <button
+            onClick={() => setMostrarModal(true)}
+            className="mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg w-full"
+          >
             Reportar error / sugerencia
           </button>
         </section>
 
-        {/* --- RESULTADOS --- */}
+        {/* RESULTADOS */}
         <section className="bg-white p-5 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Resultado</h2>
 
-          <p><strong>Básico:</strong> ${money(basico)}</p>
-          <p><strong>Antigüedad:</strong> ${money(antiguedad)}</p>
-          <p><strong>Presentismo:</strong> ${money(presentismo)}</p>
-          <p><strong>Adicional horario:</strong> ${money(adicionalHorario)}</p>
-          <p><strong>Título:</strong> ${money(tituloAd)}</p>
-          <p><strong>Función:</strong> ${money(funcionAd)}</p>
-          <p><strong>Horas 50%:</strong> ${money(hex50)}</p>
-          <p><strong>Horas 100%:</strong> ${money(hex100)}</p>
+          <Bloque titulo="Remunerativos">
+            <Fila label="Básico" value={basico} money={money} />
+            <Fila label="Antigüedad" value={antiguedadPesos} money={money} />
+            <Fila label="Adicional horario" value={adicionalHorario} money={money} />
+            <Fila label="Adicional por título" value={adicionalTitulo} money={money} />
+            <Fila label="Bonificación por función" value={adicionalFuncion} money={money} />
+            <Fila label="Horas extras 50%" value={horasExtras50} money={money} />
+            <Fila label="Horas extras 100%" value={horasExtras100} money={money} />
+            <Fila label="Presentismo" value={presentismoPesos} money={money} />
+            <Total label="Total remunerativo" value={totalRemunerativo} money={money} />
+          </Bloque>
 
-          <hr className="my-3" />
+          <Bloque titulo="No remunerativos">
+            {tieneEscalas && <Fila label="Suma no remunerativa fija (escala)" value={noRemuFijo} money={money} />}
+            <Fila label="Otras no remunerativas" value={noRemunerativo} money={money} />
+            <Total label="Total no remunerativo" value={totalNoRemunerativo} money={money} />
+          </Bloque>
 
-          <p><strong>No remunerativo fijo:</strong> ${money(noRemuFijo)}</p>
-          <p><strong>Otros no remunerativos:</strong> ${money(noRemunerativo)}</p>
+          <Bloque titulo="Deducciones">
+            {!tieneEscalas && (
+              <>
+                <Fila label="IPS (14%)" value={-totalRemunerativo * 0.14} money={money} />
+                <Fila label="IOMA (4,8%)" value={-totalRemunerativo * 0.048} money={money} />
+              </>
+            )}
+            {tieneEscalas && (
+              <>
+                <Fila label="Jubilación (11%)" value={-(totalRemunerativo * 0.11)} money={money} />
+                <Fila label="Obra social (3%)" value={-(totalRemunerativo * 0.03)} money={money} />
+                <Fila label="FAECYS (2%)" value={-(totalRemunerativo * 0.02)} money={money} />
+              </>
+            )}
+            <Fila label="Otros descuentos" value={-(Number(descuentosExtras) || 0)} money={money} />
+            <Total
+              label="Total deducciones"
+              value={
+                !tieneEscalas
+                  ? totalRemunerativo * 0.14 + totalRemunerativo * 0.048 + (Number(descuentosExtras) || 0)
+                  : totalRemunerativo * 0.11 + totalRemunerativo * 0.03 + totalRemunerativo * 0.02 + (Number(descuentosExtras) || 0)
+              }
+              money={money}
+            />
+          </Bloque>
 
-          <hr className="my-3" />
-
-          <p><strong>Descuentos:</strong></p>
-          <p> - ${money(desc1 + desc2 + desc3 + descuentosExtras)}</p>
-
-          <hr className="my-3" />
-
+          <hr className="my-4" />
           <p className="text-xl font-bold text-green-700">
-            Líquido a cobrar: ${money(liquido)}
+            Líquido a cobrar: $
+            {money(totalRemunerativo + totalNoRemunerativo - (
+              !tieneEscalas
+                ? totalRemunerativo * 0.14 + totalRemunerativo * 0.048 + (Number(descuentosExtras) || 0)
+                : totalRemunerativo * 0.11 + totalRemunerativo * 0.03 + totalRemunerativo * 0.02 + (Number(descuentosExtras) || 0)
+            ))}
           </p>
         </section>
       </div>
@@ -282,6 +479,27 @@ export default function CalculadoraSueldoTandil() {
   );
 }
 
+function Bloque({ titulo, children }) {
+  return (
+    <div className="mb-4">
+      <h3 className="text-base font-semibold text-slate-700 mb-2">{titulo}</h3>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+function Fila({ label, value, money }) {
+  return (
+    <p className="text-slate-700">
+      <span className="font-medium">{label}:</span> ${money(value)}
+    </p>
+  );
+}
+function Total({ label, value, money }) {
+  return (
+    <p className="mt-2 font-semibold text-slate-800">{label}: ${money(value)}</p>
+  );
+}
+
 function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensajeEnviado, cerrar }) {
   const enviarReporte = async () => {
     if (!descripcion.trim()) return setMensajeEnviado("Por favor describa el problema.");
@@ -292,6 +510,7 @@ function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensaje
         body: JSON.stringify({ descripcion }),
       });
       setMensajeEnviado(res.ok ? "Reporte enviado ✅" : "Error al enviar");
+      if (res.ok) setDescripcion("");
     } catch {
       setMensajeEnviado("Error de conexión");
     }
@@ -301,11 +520,30 @@ function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensaje
     <div className="fixed inset-0 bg-black/60 flex justify-center items-center">
       <div className="bg-white p-5 rounded-xl shadow max-w-md w-full">
         <h2 className="font-semibold mb-3">Reportar error o sugerencia</h2>
-        <textarea className="w-full border p-2 rounded mb-3 min-h-[120px]" value={descripcion} onChange={(e) => setDescripcion(e.target.value)}/>
+        <textarea
+          className="w-full border p-2 rounded mb-3 min-h-[120px]"
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          placeholder="Describa el problema o sugerencia..."
+        />
         {mensajeEnviado && <p className="text-sm mb-3">{mensajeEnviado}</p>}
-        <button onClick={enviarReporte} className="bg-green-700 text-white px-4 py-2 rounded mr-2">Enviar</button>
-        <button onClick={cerrar} className="bg-slate-300 px-4 py-2 rounded">Cerrar</button>
+        <button onClick={enviarReporte} className="bg-green-700 text-white px-4 py-2 rounded mr-2">
+          Enviar
+        </button>
+        <button onClick={cerrar} className="bg-slate-300 px-4 py-2 rounded">
+          Cerrar
+        </button>
       </div>
     </div>
   );
+}
+
+// "2025-10" -> "octubre de 2025"
+function formatMes(key) {
+  try {
+    const d = new Date(key + "-01T00:00:00");
+    return d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  } catch {
+    return key;
+  }
 }
