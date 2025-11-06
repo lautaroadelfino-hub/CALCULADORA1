@@ -1,5 +1,3 @@
-// src/utils/loadEscalasComercio.js
-
 export async function loadEscalasFromSheets() {
   const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQYdjr9D_QIKi5Jtpo7MEkndYO9pNd0KqaFdLJkJ8UM5leafD7HMZjtg3G2K6-lZVaDts1JGhBPdNI/pub?gid=0&single=true&output=csv";
 
@@ -18,7 +16,6 @@ export async function loadEscalasFromSheets() {
     return obj;
   });
 
-  // Convertir a formato escalas: { "YYYY-MM": { categoria: {...}, sumas_no_remunerativas_fijas: x } }
   const escalas = {};
 
   for (const row of data) {
