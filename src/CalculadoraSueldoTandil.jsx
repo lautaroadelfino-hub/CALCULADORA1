@@ -596,11 +596,18 @@ function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensaje
 }
 
 // "2025-10" -> "octubre de 2025"
+// Reemplazá la función formatMes en CalculadoraSueldoTandil.jsx
 function formatMes(key) {
   try {
-    const d = new Date(key + "-01T00:00:00");
+    if (!key) return "";
+    // normalizar "YYYY-M" -> "YYYY-MM"
+    const [y, m] = String(key).split("-");
+    const norm = `${y.padStart(4, "0")}-${(m || "01").padStart(2, "0")}`;
+    const d = new Date(`${norm}-01T00:00:00`);
+    if (isNaN(d.getTime())) return key; // fallback
     return d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   } catch {
     return key;
   }
 }
+
