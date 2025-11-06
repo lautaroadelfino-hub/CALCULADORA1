@@ -23,27 +23,35 @@ export default function CalculadoraSueldoTandil() {
   const datos =
     organismo === "municipio" ? municipio : organismo === "obras" ? obras : sisp;
 
-  const basicos = datos.basicos;
-  const plusHorarios = datos.plusHorarios;
-  const cargosPoliticos = datos.cargosPoliticos;
+  const basicos = datos.basicos || {};
+  const plusHorarios = datos.plusHorarios || {};
+  const cargosPoliticos = datos.cargosPoliticos || [];
 
-  const basico = basicos[categoria] || 0;
-  const adicionalHorario = basico * (plusHorarios?.[regimen] || 0);
-  const antiguedad = basico * 0.02 * aniosAntiguedad;
-  const presentismo = cargosPoliticos.includes(categoria) ? 0 : 50000;
+  // ✅ siempre string-safe
+  const basico = Number(basicos[categoria]) || 0;
+  const adicionalHorario = basico * (plusHorarios[regimen] || 0);
+  const antiguedad = basico * 0.02 * (Number(aniosAntiguedad) || 0);
+
+  // si es string como “A”, no lo convierte a Number (mantiene comparación como string)
+  const tienePresentismo = !cargosPoliticos.includes(categoria);
+  const presentismo = tienePresentismo ? 50000 : 0;
+
   const adicionalTitulo =
     titulo === "terciario"
       ? basico * 0.15
       : titulo === "universitario"
       ? basico * 0.2
       : 0;
-  const adicionalJefatura = basico * (jefatura / 100);
 
+  const adicionalJefatura = basico * ((Number(jefatura) || 0) / 100);
+
+  // horas
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
-  const valorHora = (basico + adicionalHorario) / (horasSemanales * 4.33);
-  const horasExtras50 = valorHora * 1.5 * horas50;
-  const horasExtras100 = valorHora * 2 * horas100;
+  const valorHora = horasSemanales ? (basico + adicionalHorario) / (horasSemanales * 4.33) : 0;
+  const horasExtras50 = valorHora * 1.5 * (Number(horas50) || 0);
+  const horasExtras100 = valorHora * 2 * (Number(horas100) || 0);
 
+  // total
   const remunerativo =
     basico +
     adicionalHorario +
@@ -56,13 +64,13 @@ export default function CalculadoraSueldoTandil() {
 
   const aporteIPS = remunerativo * 0.14;
   const aporteIOMA = remunerativo * 0.048;
-  const totalDescuentos = aporteIPS + aporteIOMA + Number(descuentosExtras);
-  const neto = remunerativo + Number(noRemunerativo) - totalDescuentos;
+  const totalDescuentos = aporteIPS + aporteIOMA + (Number(descuentosExtras) || 0);
+  const neto = remunerativo + (Number(noRemunerativo) || 0) - totalDescuentos;
 
-  const round = (v) => Math.round(v * 100) / 100;
+  const round = (v) => (isNaN(v) ? 0 : Math.round(v * 100) / 100);
 
   const limpiarFormulario = () => {
-    setCategoria("1");
+    setCategoria(Object.keys(basicos)[0] || "1");
     setAniosAntiguedad(0);
     setRegimen("35");
     setTitulo("ninguno");
@@ -111,7 +119,7 @@ export default function CalculadoraSueldoTandil() {
           value={organismo}
           onChange={(e) => {
             setOrganismo(e.target.value);
-            setCategoria("1");
+            setCategoria(Object.keys(basicos)[0] || "1");
           }}
           className="mt-1 w-full p-2 border rounded"
         >
@@ -169,12 +177,8 @@ export default function CalculadoraSueldoTandil() {
             className="mt-1 w-full p-2 border rounded"
           >
             <option value="ninguno">Sin título</option>
-            <option value="terciario">
-              Título Técnico/Terciario — 15%
-            </option>
-            <option value="universitario">
-              Universitario/Posgrado — 20%
-            </option>
+            <option value="terciario">Técnico/Terciario — 15%</option>
+            <option value="universitario">Universitario/Posgrado — 20%</option>
           </select>
 
           <label className="block text-sm font-medium mt-3">
@@ -240,22 +244,22 @@ export default function CalculadoraSueldoTandil() {
           <h2 className="text-lg font-medium mb-2">
             Resumen de Cálculo ({datos.nombre})
           </h2>
-          <p>
-            <strong>Básico:</strong> ${round(basico)}
-          </p>
-          <p>
-            <strong>Total remunerativo:</strong> ${round(remunerativo)}
-          </p>
-          <p>
-            <strong>Total no remunerativo:</strong> ${round(noRemunerativo)}
-          </p>
-          <p>
-            <strong>Descuentos:</strong> ${round(totalDescuentos)}
-          </p>
+          <p><strong>Básico:</strong> ${round(basico)}</p>
+          <p><strong>Antigüedad:</strong> ${round(antiguedad)}</p>
+          <p><strong>Adic. Horario:</strong> ${round(adicionalHorario)}</p>
+          <p><strong>Adic. Título:</strong> ${round(adicionalTitulo)}</p>
+          <p><strong>Jefatura:</strong> ${round(adicionalJefatura)}</p>
+          <p><strong>Horas 50%:</strong> ${round(horasExtras50)}</p>
+          <p><strong>Horas 100%:</strong> ${round(horasExtras100)}</p>
+          <p><strong>Presentismo:</strong> ${round(presentismo)}</p>
           <hr className="my-2" />
-          <p className="text-lg font-bold">
-            Líquido a cobrar: ${round(neto)}
-          </p>
+          <p><strong>Total Remunerativo:</strong> ${round(remunerativo)}</p>
+          <p><strong>No Remunerativo:</strong> ${round(noRemunerativo)}</p>
+          <p><strong>IPS (14%):</strong> -${round(aporteIPS)}</p>
+          <p><strong>IOMA (4,8%):</strong> -${round(aporteIOMA)}</p>
+          <p><strong>Otros desc.:</strong> -${round(descuentosExtras)}</p>
+          <hr className="my-2" />
+          <p className="text-lg font-bold">Líquido a cobrar: ${round(neto)}</p>
         </div>
       </div>
 
