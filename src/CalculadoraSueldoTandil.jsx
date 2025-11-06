@@ -19,7 +19,7 @@ export default function CalculadoraSueldoTandil() {
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
-  // Selección dinámica de datos según organismo
+  // Selección dinámica del JSON según el organismo
   const datos =
     organismo === "municipio" ? municipio : organismo === "obras" ? obras : sisp;
 
@@ -28,11 +28,15 @@ export default function CalculadoraSueldoTandil() {
   const cargosPoliticos = datos.cargosPoliticos;
 
   const basico = basicos[categoria] || 0;
-  const adicionalHorario = basico * plusHorarios[regimen];
+  const adicionalHorario = basico * (plusHorarios?.[regimen] || 0);
   const antiguedad = basico * 0.02 * aniosAntiguedad;
   const presentismo = cargosPoliticos.includes(categoria) ? 0 : 50000;
   const adicionalTitulo =
-    titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
+    titulo === "terciario"
+      ? basico * 0.15
+      : titulo === "universitario"
+      ? basico * 0.2
+      : 0;
   const adicionalJefatura = basico * (jefatura / 100);
 
   const horasSemanales = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
@@ -97,7 +101,7 @@ export default function CalculadoraSueldoTandil() {
   return (
     <div className="max-w-5xl mx-auto p-6 bg-slate-50 rounded-2xl shadow">
       <h1 className="text-2xl font-semibold mb-4">
-        Calculadora de Sueldos — Municipio de Tandil
+        Calculadora de Sueldos — {datos.nombre}
       </h1>
 
       {/* Selector de organismo */}
@@ -107,7 +111,7 @@ export default function CalculadoraSueldoTandil() {
           value={organismo}
           onChange={(e) => {
             setOrganismo(e.target.value);
-            setCategoria(Object.keys(basicos)[0]);
+            setCategoria("1");
           }}
           className="mt-1 w-full p-2 border rounded"
         >
@@ -133,8 +137,95 @@ export default function CalculadoraSueldoTandil() {
             ))}
           </select>
 
-          {/* (resto de los inputs igual que antes) */}
-          {/* ... antigüedad, régimen, título, etc ... */}
+          <label className="block text-sm font-medium mt-3">
+            Años de antigüedad
+          </label>
+          <input
+            type="number"
+            value={aniosAntiguedad}
+            onChange={(e) => setAniosAntiguedad(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Régimen horario semanal
+          </label>
+          <select
+            value={regimen}
+            onChange={(e) => setRegimen(e.target.value)}
+            className="mt-1 w-full p-2 border rounded"
+          >
+            <option value="35">35 hs (sin plus)</option>
+            <option value="40">40 hs (+14,29%)</option>
+            <option value="48">48 hs (+37,14%)</option>
+          </select>
+
+          <label className="block text-sm font-medium mt-3">
+            Adicional por título
+          </label>
+          <select
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="mt-1 w-full p-2 border rounded"
+          >
+            <option value="ninguno">Sin título</option>
+            <option value="terciario">
+              Título Técnico/Terciario — 15%
+            </option>
+            <option value="universitario">
+              Universitario/Posgrado — 20%
+            </option>
+          </select>
+
+          <label className="block text-sm font-medium mt-3">
+            Bonificación por jefatura (%)
+          </label>
+          <input
+            type="number"
+            value={jefatura}
+            onChange={(e) => setJefatura(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Horas extras al 50%
+          </label>
+          <input
+            type="number"
+            value={horas50}
+            onChange={(e) => setHoras50(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Horas extras al 100%
+          </label>
+          <input
+            type="number"
+            value={horas100}
+            onChange={(e) => setHoras100(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Descuentos adicionales ($)
+          </label>
+          <input
+            type="number"
+            value={descuentosExtras}
+            onChange={(e) => setDescuentosExtras(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
+
+          <label className="block text-sm font-medium mt-3">
+            Premio productividad / No remunerativo ($)
+          </label>
+          <input
+            type="number"
+            value={noRemunerativo}
+            onChange={(e) => setNoRemunerativo(Number(e.target.value))}
+            className="mt-1 w-full p-2 border rounded"
+          />
 
           <button
             onClick={limpiarFormulario}
@@ -146,17 +237,29 @@ export default function CalculadoraSueldoTandil() {
 
         {/* RESULTADOS */}
         <div className="bg-white p-4 rounded-2xl shadow-sm">
-          <h2 className="text-lg font-medium mb-2">Resumen de Cálculo ({datos.nombre})</h2>
-          <p><strong>Básico:</strong> ${round(basico)}</p>
-          <p><strong>Total remunerativo:</strong> ${round(remunerativo)}</p>
-          <p><strong>Total no remunerativo:</strong> ${round(noRemunerativo)}</p>
-          <p><strong>Descuentos:</strong> ${round(totalDescuentos)}</p>
+          <h2 className="text-lg font-medium mb-2">
+            Resumen de Cálculo ({datos.nombre})
+          </h2>
+          <p>
+            <strong>Básico:</strong> ${round(basico)}
+          </p>
+          <p>
+            <strong>Total remunerativo:</strong> ${round(remunerativo)}
+          </p>
+          <p>
+            <strong>Total no remunerativo:</strong> ${round(noRemunerativo)}
+          </p>
+          <p>
+            <strong>Descuentos:</strong> ${round(totalDescuentos)}
+          </p>
           <hr className="my-2" />
-          <p className="text-lg font-bold">Líquido a cobrar: ${round(neto)}</p>
+          <p className="text-lg font-bold">
+            Líquido a cobrar: ${round(neto)}
+          </p>
         </div>
       </div>
 
-      {/* Reporte */}
+      {/* BOTÓN REPORTAR */}
       <div className="mt-6 text-center">
         <button
           onClick={() => setMostrarModal(true)}
@@ -166,10 +269,13 @@ export default function CalculadoraSueldoTandil() {
         </button>
       </div>
 
+      {/* MODAL REPORTAR */}
       {mostrarModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white p-6 rounded-2xl shadow max-w-md w-full">
-            <h2 className="text-lg font-semibold mb-2">Reportar error o sugerencia</h2>
+            <h2 className="text-lg font-semibold mb-2">
+              Reportar error o sugerencia
+            </h2>
             <textarea
               className="w-full border rounded p-2 min-h-[120px]"
               placeholder="Describí el problema o sugerencia..."
