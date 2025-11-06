@@ -1,5 +1,7 @@
 import CalculadoraSueldoTandil from "./CalculadoraSueldoTandil";
 
-export default function App() {
+function App() {
   return <CalculadoraSueldoTandil />;
 }
+
+export default App;
