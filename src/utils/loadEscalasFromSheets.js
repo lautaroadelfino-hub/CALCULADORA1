@@ -1,49 +1,35 @@
-function parseCSV(text) {
-  const delimiter = text.includes(";") ? ";" : ",";
-  return text.trim().split(/\r?\n/).map(line => line.split(delimiter).map(v => v.trim()));
-}
+// src/utils/loadEscalasComercio.js
 
-function normMes(v) {
-  const [y, m] = String(v).replace("/", "-").split("-");
-  return `${y.padStart(4,"0")}-${m.padStart(2,"0")}`;
-}
+export async function loadEscalasComercio() {
+  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQYdjr9D_QIKi5Jtpo7MEkndYO9pNd0KqaFdLJkJ8UM5leafD7HMZjtg3G2K6-lZVaDts1JGhBPdNI/pub?gid=0&single=true&output=csv";
 
-function toNumber(v) {
-  return Number(String(v).replace(/\./g, "").replace(/,/g, ".")) || 0;
-}
-
-export async function loadEscalasFromSheets() {
-  const url = "TU_CSV_PUBLICO_AQUÍ";
   const res = await fetch(url);
-  const text = await res.text();
-  const rows = parseCSV(text);
+  const csv = await res.text();
 
-  const headers = rows.shift().map(v => v.toLowerCase());
+  const rows = csv.split("\n").map(r => r.trim()).filter(r => r.length > 0);
+  const header = rows.shift().split(",");
 
-  const idxConv = headers.findIndex(h => h.includes("convenio"));
-  const idxMes  = headers.findIndex(h => h.includes("mes"));
-  const idxCat  = headers.findIndex(h => h.includes("cat"));
-  const idxBas  = headers.findIndex(h => h.includes("bas"));
-  const idxNRF  = headers.findIndex(h => h.includes("no") && h.includes("rem"));
+  const data = rows.map(r => {
+    const cols = r.split(",");
+    const obj = {};
+    header.forEach((h, i) => {
+      obj[h.trim()] = cols[i]?.trim() ?? "";
+    });
+    return obj;
+  });
 
-  const result = {};
+  // Convertir a formato escalas: { "YYYY-MM": { categoria: {...}, sumas_no_remunerativas_fijas: x } }
+  const escalas = {};
 
-  for (const r of rows) {
-    const conv = r[idxConv];
-    const mes = normMes(r[idxMes]);
-    const cat = r[idxCat];
-    const bas = toNumber(r[idxBas]);
-    const nrf = idxNRF >= 0 ? toNumber(r[idxNRF]) : 0;
+  for (const row of data) {
+    const mes = row.Mes;
+    const categoria = row.Categoria;
+    const basico = Number(row.Básico || row.Basico || 0);
+    const noRem = Number(row.NoRemunerativo || 0);
 
-    if (!conv || !mes || !cat) continue;
-
-    if (!result[conv]) result[conv] = {};
-    if (!result[conv][mes]) result[conv][mes] = { categoria: {}, sumas_no_remunerativas_fijas: 0 };
-
-    result[conv][mes].categoria[cat] = bas;
-    if (nrf > 0) result[conv][mes].sumas_no_remunerativas_fijas = nrf;
+    if (!escalas[mes]) escalas[mes] = { categoria: {}, sumas_no_remunerativas_fijas: noRem };
+    escalas[mes].categoria[categoria] = basico;
   }
 
-  console.log("✅ Escalas cargadas:", result);
-  return result;
+  return escalas;
 }
