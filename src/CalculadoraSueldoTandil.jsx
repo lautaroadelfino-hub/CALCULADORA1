@@ -5,25 +5,28 @@ import sisp from "./datos/sisp.json";
 import comercio from "./datos/privados/comercio_130_75.json";
 
 export default function CalculadoraSueldoTandil() {
-  const [sector, setSector] = useState("publico");
-  const [convenio, setConvenio] = useState("municipio"); // municipio / obras / sisp / comercio
-  const [mes, setMes] = useState(""); // sólo para convenios con escalas (comercio)
+  // --- Estado global UI ---
+  const [sector, setSector] = useState("publico");       // publico | privado
+  const [convenio, setConvenio] = useState("municipio"); // municipio | obras | sisp | comercio
+  const [mes, setMes] = useState("");                    // YYYY-MM (si el convenio tiene escalas)
 
+  // --- Parámetros de cálculo ---
   const [categoria, setCategoria] = useState("1");
   const [aniosAntiguedad, setAniosAntiguedad] = useState(0);
-  const [regimen, setRegimen] = useState("35"); // públicos: 35/40/48; comercio: 48 fijo
-  const [titulo, setTitulo] = useState("ninguno"); // ninguno / terciario / universitario
-  const [funcion, setFuncion] = useState(0); // %
+  const [regimen, setRegimen] = useState("35");          // 35|40|48 (en público). En comercio siempre 48.
+  const [titulo, setTitulo] = useState("ninguno");       // ninguno|terciario|universitario
+  const [funcion, setFuncion] = useState(0);             // %
   const [horas50, setHoras50] = useState(0);
   const [horas100, setHoras100] = useState(0);
   const [descuentosExtras, setDescuentosExtras] = useState(0);
   const [noRemunerativo, setNoRemunerativo] = useState(0);
 
+  // --- Reporte interno ---
   const [mostrarModal, setMostrarModal] = useState(false);
   const [descripcion, setDescripcion] = useState("");
   const [mensajeEnviado, setMensajeEnviado] = useState(null);
 
-  // Mapa de convenios por sector
+  // --- Mapa de convenios por sector ---
   const convenios = useMemo(
     () => ({
       publico: { municipio, obras, sisp },
@@ -35,14 +38,14 @@ export default function CalculadoraSueldoTandil() {
   const datosConvenio = convenios[sector][convenio];
   const tieneEscalas = Boolean(datosConvenio?.escalas);
 
-  // Formateo
+  // --- Formateo moneda ---
   const money = (v) =>
     new Intl.NumberFormat("es-AR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(v) || 0);
 
-  // UX: limpiar 0 al enfocar inputs numéricos
+  // UX inputs: limpiar 0 al enfocar
   const onFocusZero = (e) => {
     if (e.target.value === "0") e.target.value = "";
   };
@@ -53,50 +56,50 @@ export default function CalculadoraSueldoTandil() {
     }
   };
 
-  // Al cambiar sector, setear convenio por defecto
+  // Al cambiar sector → convenio default
   useEffect(() => {
     setConvenio(sector === "publico" ? "municipio" : "comercio");
   }, [sector]);
 
-  // Al cambiar convenio:
-  // - si tiene escalas (comercio), asegurar mes válido y categoría inicial
-  // - si no tiene escalas (públicos), fijar categoría inicial
+  // Al cambiar convenio → fijar mes válido (si hay escalas), categoría y régimen
   useEffect(() => {
     if (tieneEscalas) {
       const meses = Object.keys(datosConvenio?.escalas || {});
       if (meses.length > 0) {
         const mesValido = meses.includes(mes) ? mes : meses[0];
         if (mesValido !== mes) setMes(mesValido);
-        const catObj = datosConvenio.escalas[mesValido]?.categoria || {};
+
+        const catObj = datosConvenio?.escalas?.[mesValido]?.categoria || {};
         const firstCat = Object.keys(catObj)[0] || "1";
         setCategoria(firstCat);
-        setRegimen("48"); // Comercio: 48 hs fijo
+        setRegimen(sector === "privado" ? "48" : "35"); // público default 35; comercio 48 fijo
       }
     } else {
+      // Si no hay escalas (no debería pasar con el nuevo formato público, pero por compat):
       const b = datosConvenio?.basicos || {};
-      const firstCat = Object.keys(b)[0] || "1";
-      setCategoria(firstCat);
-      // mantener régimen elegido por el usuario (35/40/48), default 35
-      setRegimen((prev) =>
-        prev === "35" || prev === "40" || prev === "48" ? prev : "35"
-      );
-      setMes(""); // no aplica
+      const first = Object.keys(b)[0] || "1";
+      setCategoria(first);
+      setRegimen("35");
+      setMes("");
     }
-  }, [convenio, datosConvenio, tieneEscalas]);
+  }, [convenio, datosConvenio, tieneEscalas, sector]);
 
-  // Si cambia `mes` manualmente (en comercio), asegurar que la categoría se ajuste
+  // Al cambiar mes en convenios con escalas → asegurar categoría válida
   useEffect(() => {
     if (tieneEscalas && mes && datosConvenio?.escalas?.[mes]) {
       const catObj = datosConvenio.escalas[mes].categoria || {};
-      const firstCat = Object.keys(catObj)[0] || "1";
-      if (!catObj[categoria]) setCategoria(firstCat);
+      if (!catObj[categoria]) {
+        const first = Object.keys(catObj)[0] || "1";
+        setCategoria(first);
+      }
     }
   }, [mes, tieneEscalas, datosConvenio, categoria]);
 
   // Helpers
   const valorHora = (base, horasSem) => (horasSem > 0 ? base / (horasSem * 4.33) : 0);
 
-  // Cálculos
+  // === CÁLCULOS ===
+  // Variables acumuladoras
   let basico = 0;
   let adicionalHorario = 0;
   let antiguedadPesos = 0;
@@ -107,41 +110,44 @@ export default function CalculadoraSueldoTandil() {
   let horasExtras100 = 0;
   let totalRemunerativo = 0;
   let totalNoRemunerativo = 0;
-  let desc1 = 0,
-    desc2 = 0,
-    desc3 = 0;
+  let desc1 = 0, desc2 = 0, desc3 = 0;
   let liquido = 0;
   let noRemuFijo = 0;
 
-  if (!tieneEscalas) {
-    // ======= PÚBLICOS =======
-    const bmap = datosConvenio?.basicos || {};
+  if (sector === "publico") {
+    // ======= PÚBLICO (Admin. Central, Obras, SISP) =======
+    // Se espera formato con escalas por mes
+    const escala = datosConvenio?.escalas?.[mes] || {};
+    const bmap = escala?.categoria || {};
     basico = Number(bmap[categoria]) || 0;
 
-    // Plus horario
-    const plus = datosConvenio?.plusHorarios?.[regimen] || 0;
+    // Plus horario desde JSON por mes (0, 0.1429, 0.3714)
+    const plus = escala?.plusHorarios?.[regimen] || 0;
     adicionalHorario = basico * plus;
 
-    // Antigüedad 2% por año sobre básico
-    antiguedadPesos = basico * 0.02 * (Number(aniosAntiguedad) || 0);
+    // Antigüedad desde JSON por mes (porcentaje)
+    const antPct = Number(escala?.antiguedad_porcentaje) || 0.02;
+    antiguedadPesos = basico * antPct * (Number(aniosAntiguedad) || 0);
 
-    // Presentismo fijo $50.000 excepto cargos políticos
+    // Presentismo fijo desde JSON por mes (excluye cargos políticos)
+    const presentismoFijo = Number(escala?.presentismo_fijo) || 0;
     const esCargoPolitico =
-      (datosConvenio?.cargosPoliticos || []).map(String).includes(String(categoria));
-    presentismoPesos = esCargoPolitico ? 0 : 50000;
+      (escala?.cargosPoliticos || []).map(String).includes(String(categoria));
+    presentismoPesos = esCargoPolitico ? 0 : presentismoFijo;
 
-    // Adicional por título (15% / 20%)
+    // Adicional por título
     adicionalTitulo =
-      titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
+      titulo === "terciario" ? basico * 0.15 :
+      titulo === "universitario" ? basico * 0.2 : 0;
 
     // Bonificación por función (%)
     adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-    // Horas extras: (básico + plus horario)
+    // Horas extras sobre (básico + plus)
     const horasSem = { 35: 35, 40: 40, 48: 48 }[regimen] || 35;
     const vh = valorHora(basico + adicionalHorario, horasSem);
     horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
-    horasExtras100 = vh * 2 * (Number(horas100) || 0);
+    horasExtras100 = vh * 2.0 * (Number(horas100) || 0);
 
     totalRemunerativo =
       basico +
@@ -155,36 +161,39 @@ export default function CalculadoraSueldoTandil() {
 
     totalNoRemunerativo = Number(noRemunerativo) || 0;
 
-    // Descuentos públicos: IPS 14% + IOMA 4.8%
+    // Descuentos públicos: IPS 14% + IOMA 4,8% (sobre remunerativo)
     const extras = Number(descuentosExtras) || 0;
     desc1 = totalRemunerativo * 0.14;
     desc2 = totalRemunerativo * 0.048;
     const totalDeducciones = desc1 + desc2 + extras;
 
     liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
+
   } else {
     // ======= PRIVADO — COMERCIO 130/75 =======
     const escala = datosConvenio?.escalas?.[mes] || {};
     const bmap = escala?.categoria || {};
     basico = Number(bmap[categoria]) || 0;
 
+    // Comercio: no hay plus horario, régimen fijo 48
     noRemuFijo = Number(escala?.sumas_no_remunerativas_fijas) || 0;
 
-    // Antigüedad: 1% sobre (básico + suma NR fija) por año
+    // Antigüedad 1% sobre (básico + NR fijo) por año
     antiguedadPesos = (basico + noRemuFijo) * (Number(aniosAntiguedad) || 0) * 0.01;
 
-    // Presentismo: 1/12 del total (sin presentismo): tomamos (basico + antigüedad + NR fijo) / 12
+    // Presentismo: 1/12 del total sin presentismo (criterio práctico)
     presentismoPesos = (basico + antiguedadPesos + noRemuFijo) / 12;
 
-    // Título / función (opcionales)
+    // Adicional por título / función (opcionales)
     adicionalTitulo =
-      titulo === "terciario" ? basico * 0.15 : titulo === "universitario" ? basico * 0.2 : 0;
+      titulo === "terciario" ? basico * 0.15 :
+      titulo === "universitario" ? basico * 0.2 : 0;
     adicionalFuncion = basico * ((Number(funcion) || 0) / 100);
 
-    // Horas extras (base: básico, 48hs)
+    // Horas extras (base: básico) 48 hs
     const vh = valorHora(basico, 48);
     horasExtras50 = vh * 1.5 * (Number(horas50) || 0);
-    horasExtras100 = vh * 2 * (Number(horas100) || 0);
+    horasExtras100 = vh * 2.0 * (Number(horas100) || 0);
 
     totalRemunerativo =
       basico +
@@ -199,9 +208,9 @@ export default function CalculadoraSueldoTandil() {
 
     // Descuentos: 11% + 3% + 2% (sobre remunerativo)
     const extras = Number(descuentosExtras) || 0;
-    desc1 = totalRemunerativo * 0.11; // jubilación
-    desc2 = totalRemunerativo * 0.03; // obra social
-    desc3 = totalRemunerativo * 0.02; // FAECYS
+    desc1 = totalRemunerativo * 0.11;
+    desc2 = totalRemunerativo * 0.03;
+    desc3 = totalRemunerativo * 0.02;
     const totalDeducciones = desc1 + desc2 + desc3 + extras;
 
     liquido = totalRemunerativo + totalNoRemunerativo - totalDeducciones;
@@ -213,6 +222,9 @@ export default function CalculadoraSueldoTandil() {
     nombre: convenios[sector][key].nombre,
   }));
 
+  // Claves de mes disponibles (si existen)
+  const mesesDisponibles = tieneEscalas ? Object.keys(datosConvenio?.escalas || {}) : [];
+
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="bg-blue-800 text-white p-4 text-center text-xl font-semibold">
@@ -220,7 +232,7 @@ export default function CalculadoraSueldoTandil() {
       </header>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-        {/* PARÁMETROS */}
+        {/* === PARÁMETROS === */}
         <section className="bg-white p-5 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Parámetros</h2>
 
@@ -230,7 +242,7 @@ export default function CalculadoraSueldoTandil() {
             onChange={(e) => setSector(e.target.value)}
             className="w-full p-2 border rounded mb-3"
           >
-            <option value="publico">Administración Central</option>
+            <option value="publico">Público</option>
             <option value="privado">Privado</option>
           </select>
 
@@ -254,9 +266,9 @@ export default function CalculadoraSueldoTandil() {
                 value={mes}
                 onChange={(e) => setMes(e.target.value)}
                 className="w-full p-2 border rounded mb-3"
-                disabled={!datosConvenio?.escalas}
+                disabled={!tieneEscalas}
               >
-                {Object.keys(datosConvenio?.escalas || {}).map((k) => (
+                {mesesDisponibles.map((k) => (
                   <option key={k} value={k}>
                     {formatMes(k)}
                   </option>
@@ -265,7 +277,6 @@ export default function CalculadoraSueldoTandil() {
             </>
           )}
 
-          {/* Categoría */}
           <label className="block text-sm font-medium">Categoría</label>
           <select
             value={categoria}
@@ -295,7 +306,8 @@ export default function CalculadoraSueldoTandil() {
             className="w-full p-2 border rounded mb-3"
           />
 
-          {!tieneEscalas && (
+          {/* Público elige régimen; en Comercio queda fijo (48) */}
+          {sector === "publico" && (
             <>
               <label className="block text-sm font-medium">Régimen horario semanal</label>
               <select
@@ -379,13 +391,12 @@ export default function CalculadoraSueldoTandil() {
           <button
             onClick={() => {
               // Reset de parámetros (no cambia sector/convenio/mes)
-              setCategoria(
-                tieneEscalas
-                  ? Object.keys(datosConvenio?.escalas?.[mes]?.categoria || {})[0] || "1"
-                  : Object.keys(datosConvenio?.basicos || {})[0] || "1"
-              );
+              const firstCat = tieneEscalas
+                ? Object.keys(datosConvenio?.escalas?.[mes]?.categoria || {})[0] || "1"
+                : Object.keys(datosConvenio?.basicos || {})[0] || "1";
+              setCategoria(firstCat);
               setAniosAntiguedad(0);
-              setRegimen(tieneEscalas ? "48" : "35");
+              setRegimen(sector === "publico" ? "35" : "48");
               setTitulo("ninguno");
               setFuncion(0);
               setHoras50(0);
@@ -406,7 +417,7 @@ export default function CalculadoraSueldoTandil() {
           </button>
         </section>
 
-        {/* RESULTADOS */}
+        {/* === RESULTADOS === */}
         <section className="bg-white p-5 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Resultado</h2>
 
@@ -423,19 +434,24 @@ export default function CalculadoraSueldoTandil() {
           </Bloque>
 
           <Bloque titulo="No remunerativos">
-            {tieneEscalas && <Fila label="Suma no remunerativa fija (escala)" value={noRemuFijo} money={money} />}
+            {sector === "privado" && (
+              <Fila
+                label="Suma no remunerativa fija (escala)"
+                value={noRemuFijo}
+                money={money}
+              />
+            )}
             <Fila label="Otras no remunerativas" value={noRemunerativo} money={money} />
             <Total label="Total no remunerativo" value={totalNoRemunerativo} money={money} />
           </Bloque>
 
           <Bloque titulo="Deducciones">
-            {!tieneEscalas && (
+            {sector === "publico" ? (
               <>
-                <Fila label="IPS (14%)" value={-totalRemunerativo * 0.14} money={money} />
-                <Fila label="IOMA (4,8%)" value={-totalRemunerativo * 0.048} money={money} />
+                <Fila label="IPS (14%)" value={-(totalRemunerativo * 0.14)} money={money} />
+                <Fila label="IOMA (4,8%)" value={-(totalRemunerativo * 0.048)} money={money} />
               </>
-            )}
-            {tieneEscalas && (
+            ) : (
               <>
                 <Fila label="Jubilación (11%)" value={-(totalRemunerativo * 0.11)} money={money} />
                 <Fila label="Obra social (3%)" value={-(totalRemunerativo * 0.03)} money={money} />
@@ -446,7 +462,7 @@ export default function CalculadoraSueldoTandil() {
             <Total
               label="Total deducciones"
               value={
-                !tieneEscalas
+                sector === "publico"
                   ? totalRemunerativo * 0.14 + totalRemunerativo * 0.048 + (Number(descuentosExtras) || 0)
                   : totalRemunerativo * 0.11 + totalRemunerativo * 0.03 + totalRemunerativo * 0.02 + (Number(descuentosExtras) || 0)
               }
@@ -457,11 +473,16 @@ export default function CalculadoraSueldoTandil() {
           <hr className="my-4" />
           <p className="text-xl font-bold text-green-700">
             Líquido a cobrar: $
-            {money(totalRemunerativo + totalNoRemunerativo - (
-              !tieneEscalas
-                ? totalRemunerativo * 0.14 + totalRemunerativo * 0.048 + (Number(descuentosExtras) || 0)
-                : totalRemunerativo * 0.11 + totalRemunerativo * 0.03 + totalRemunerativo * 0.02 + (Number(descuentosExtras) || 0)
-            ))}
+            {money(
+              totalRemunerativo +
+                totalNoRemunerativo -
+                (sector === "publico"
+                  ? totalRemunerativo * 0.14 + totalRemunerativo * 0.048 + (Number(descuentosExtras) || 0)
+                  : totalRemunerativo * 0.11 +
+                    totalRemunerativo * 0.03 +
+                    totalRemunerativo * 0.02 +
+                    (Number(descuentosExtras) || 0))
+            )}
           </p>
         </section>
       </div>
@@ -487,6 +508,7 @@ function Bloque({ titulo, children }) {
     </div>
   );
 }
+
 function Fila({ label, value, money }) {
   return (
     <p className="text-slate-700">
@@ -494,9 +516,12 @@ function Fila({ label, value, money }) {
     </p>
   );
 }
+
 function Total({ label, value, money }) {
   return (
-    <p className="mt-2 font-semibold text-slate-800">{label}: ${money(value)}</p>
+    <p className="mt-2 font-semibold text-slate-800">
+      {label}: ${money(value)}
+    </p>
   );
 }
 
@@ -509,7 +534,7 @@ function ReportarModal({ descripcion, setDescripcion, mensajeEnviado, setMensaje
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ descripcion }),
       });
-      setMensajeEnviado(res.ok ? "Reporte enviado ✅" : "Error al enviar");
+      setMensajeEnviado(res.ok ? "Reporte enviado" : "Error al enviar");
       if (res.ok) setDescripcion("");
     } catch {
       setMensajeEnviado("Error de conexión");
