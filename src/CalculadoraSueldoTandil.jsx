@@ -32,9 +32,14 @@ export default function CalculadoraSueldoTandil() {
   const adicionalHorario = basico * (plusHorarios[regimen] || 0);
   const antiguedad = basico * 0.02 * (Number(aniosAntiguedad) || 0);
 
-  // si es string como “A”, no lo convierte a Number (mantiene comparación como string)
-  const tienePresentismo = !cargosPoliticos.includes(categoria);
+  // ✅ Presentismo corregido
+  const tienePresentismo =
+    !cargosPoliticos
+      .map((c) => String(c))
+      .includes(String(categoria));
+
   const presentismo = tienePresentismo ? 50000 : 0;
+
 
   const adicionalTitulo =
     titulo === "terciario"
