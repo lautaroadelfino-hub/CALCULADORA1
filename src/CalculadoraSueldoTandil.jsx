@@ -47,7 +47,7 @@ export default function CalculadoraSueldoTandil() {
     []
   );
 
-  const datosConvenio: any = convenios[sector][convenio];
+  const datosConvenio = convenios[sector][convenio];
   const esPrivado = sector === "privado";
   const tieneEscalas = Boolean(datosConvenio?.escalas);
 
@@ -411,7 +411,7 @@ function Layout({
   mes,
   setMes,
   children,
-}: any) {
+}) {
   // Opciones de convenio según sector
   const opcionesConvenio = Object.keys(convenios[sector]).map((key) => ({
     key,
@@ -517,7 +517,7 @@ function PanelParametros({
   mes,
   setMes,
   escalasKeys,
-}: any) {
+}) {
   return (
     <section className="bg-white rounded-2xl shadow p-5">
       <h2 className="text-sm uppercase tracking-wider text-slate-500 border-b pb-2 mb-3">Parámetros</h2>
@@ -654,7 +654,7 @@ function PanelResultados({
   totalDeducciones,
   liquido,
   money,
-}: any) {
+}) {
   return (
     <section className="bg-white rounded-2xl shadow p-5">
       <h2 className="text-sm uppercase tracking-wider text-slate-500 border-b pb-2 mb-3">Resumen de cálculo</h2>
@@ -703,7 +703,7 @@ function ReportarModal({
   setDescripcion,
   mensajeEnviado,
   setMensajeEnviado,
-}: any) {
+}) {
   const enviarReporte = async () => {
     if (!descripcion.trim()) {
       setMensajeEnviado("Por favor escriba una descripción del problema.");
