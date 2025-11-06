@@ -33,12 +33,12 @@ export async function loadEscalasFromSheets() {
 
     if (!escalas[mes]) {
       escalas[mes] = {
-        categoria: {},
-        sumas_no_remunerativas_fijas: noRem,
+        categorias: {},          // ✅ nombre correcto
+        no_rem: noRem || 0,      // ✅ nombre correcto
       };
     }
 
-    escalas[mes].categoria[categoria] = basico;
+    escalas[mes].categorias[categoria] = basico; // ✅ categorías con S
   }
 
   return escalas;
