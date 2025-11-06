@@ -1,0 +1,30 @@
+{
+  "nombre": "Empleados de Comercio",
+  "cct": "130/75",
+  "sector": "privado",
+
+  "parametros": {
+    "antiguedad": "1%_sobre_(basico + sumas_no_remunerativas)",
+    "presentismo": "8.33%_sobre_total_remunerativo_y_no_remunerativo",
+    "aportes": {
+      "jubilacion": 11,
+      "obra_social": 3,
+      "faecys": 2
+    }
+  },
+
+  "escalas": {
+    "2025-10": {
+      "sumas_no_remunerativas_fijas": 40000,
+
+      "categoria": {
+        "administrativo_a": 1047131,
+        "administrativo_b": 1051637,
+        "administrativo_c": 1056137,
+        "administrativo_d": 1069648,
+        "administrativo_e": 1080904,
+        "administrativo_f": 1097415
+      }
+    }
+  }
+}
